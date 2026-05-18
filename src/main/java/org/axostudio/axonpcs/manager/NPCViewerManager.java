@@ -19,30 +19,36 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NPCViewerManager {
     private final AxoNPCsPlugin plugin;
     private final Map<UUID, Set<String>> visible = new ConcurrentHashMap<>();
-    private final Map<UUID, SchedulerUtil.TaskHandle> tasks = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<SchedulerUtil.TaskHandle>> tasks = new ConcurrentHashMap<>();
 
     public NPCViewerManager(AxoNPCsPlugin plugin) {
         this.plugin = plugin;
     }
 
     public void start(Player player) {
+        if (plugin.isShuttingDown() || !player.isOnline()) {
+            return;
+        }
         stop(player);
         long delay = plugin.getConfig().getLong("rendering.join-delay-ticks", 20L);
         long interval = Math.max(1L, plugin.getConfig().getLong("rendering.update-interval-ticks", 10L));
-        plugin.getSchedulerUtil().runEntityDelayed(player, () -> tick(player), delay);
-        SchedulerUtil.TaskHandle task = plugin.getSchedulerUtil().runEntityTimer(player, () -> tick(player), delay + interval, interval);
-        tasks.put(player.getUniqueId(), task);
+        track(player, plugin.getSchedulerUtil().runEntityDelayed(player, () -> tick(player), delay));
+        track(player, plugin.getSchedulerUtil().runEntityTimer(player, () -> tick(player), delay + interval, interval));
     }
 
     public void stop(Player player) {
-        SchedulerUtil.TaskHandle task = tasks.remove(player.getUniqueId());
-        if (task != null) {
-            task.cancel();
+        cancelTasks(player.getUniqueId());
+        if (plugin.isShuttingDown()) {
+            hideAllImmediately(player);
+            return;
         }
         hideAll(player);
     }
 
     public void tick(Player player) {
+        if (plugin.isShuttingDown()) {
+            return;
+        }
         if (!player.isOnline()) {
             stop(player);
             return;
@@ -60,7 +66,7 @@ public final class NPCViewerManager {
     }
 
     public void show(Player player, VirtualNPC npc) {
-        if (!player.isOnline() || isVisible(player, npc)) {
+        if (plugin.isShuttingDown() || !player.isOnline() || isVisible(player, npc)) {
             return;
         }
         if (!plugin.getPacketManager().show(player, npc)) {
@@ -71,6 +77,10 @@ public final class NPCViewerManager {
     }
 
     public void hide(Player player, VirtualNPC npc) {
+        if (plugin.isShuttingDown()) {
+            hideImmediately(player, npc);
+            return;
+        }
         Set<String> playerVisible = visible.get(player.getUniqueId());
         if (playerVisible == null || !playerVisible.remove(npc.getId())) {
             return;
@@ -83,6 +93,10 @@ public final class NPCViewerManager {
     }
 
     public void hideAll(Player player) {
+        if (plugin.isShuttingDown()) {
+            hideAllImmediately(player);
+            return;
+        }
         Set<String> ids = visible.remove(player.getUniqueId());
         if (ids == null || ids.isEmpty()) {
             return;
@@ -98,18 +112,29 @@ public final class NPCViewerManager {
     }
 
     public void hideAll() {
+        if (plugin.isShuttingDown()) {
+            hideAllImmediately();
+            return;
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getSchedulerUtil().runEntity(player, () -> hideAll(player));
         }
     }
 
     public void hideNPCFromAll(VirtualNPC npc) {
+        if (plugin.isShuttingDown()) {
+            hideNPCFromAllImmediately(npc);
+            return;
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getSchedulerUtil().runEntity(player, () -> hide(player, npc));
         }
     }
 
     public void refreshNPC(VirtualNPC npc) {
+        if (plugin.isShuttingDown()) {
+            return;
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getSchedulerUtil().runEntity(player, () -> {
                 if (isVisible(player, npc)) {
@@ -121,6 +146,9 @@ public final class NPCViewerManager {
     }
 
     public void refreshAll() {
+        if (plugin.isShuttingDown()) {
+            return;
+        }
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getSchedulerUtil().runEntity(player, () -> {
                 hideAll(player);
@@ -152,6 +180,44 @@ public final class NPCViewerManager {
         return plugin.getPacketManager().viewerCount(npc);
     }
 
+    public void shutdownNow() {
+        cancelAllTasks();
+        hideAllImmediately();
+        visible.clear();
+    }
+
+    public void hideAllImmediately() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            hideAllImmediately(player);
+        }
+    }
+
+    public void hideAllImmediately(Player player) {
+        visible.remove(player.getUniqueId());
+        if (plugin.getPacketManager() != null) {
+            plugin.getPacketManager().hideAll(player);
+        }
+    }
+
+    private void hideImmediately(Player player, VirtualNPC npc) {
+        Set<String> playerVisible = visible.get(player.getUniqueId());
+        if (playerVisible != null) {
+            playerVisible.remove(npc.getId());
+            if (playerVisible.isEmpty()) {
+                visible.remove(player.getUniqueId());
+            }
+        }
+        if (plugin.getPacketManager() != null) {
+            plugin.getPacketManager().hide(player, npc);
+        }
+    }
+
+    private void hideNPCFromAllImmediately(VirtualNPC npc) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            hideImmediately(player, npc);
+        }
+    }
+
     private boolean shouldSee(Location playerLocation, VirtualNPC npc) {
         if (playerLocation.getWorld() == null || !playerLocation.getWorld().getName().equals(npc.getPosition().world())) {
             return false;
@@ -159,5 +225,28 @@ public final class NPCViewerManager {
         double distanceSquared = playerLocation.distanceSquared(npc.getLocation());
         double viewDistance = npc.getViewDistance();
         return distanceSquared <= viewDistance * viewDistance;
+    }
+
+    private void track(Player player, SchedulerUtil.TaskHandle task) {
+        if (task == null) {
+            return;
+        }
+        tasks.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet()).add(task);
+    }
+
+    private void cancelTasks(UUID playerId) {
+        Set<SchedulerUtil.TaskHandle> playerTasks = tasks.remove(playerId);
+        if (playerTasks == null) {
+            return;
+        }
+        for (SchedulerUtil.TaskHandle task : playerTasks) {
+            task.cancel();
+        }
+    }
+
+    private void cancelAllTasks() {
+        for (UUID playerId : Set.copyOf(tasks.keySet())) {
+            cancelTasks(playerId);
+        }
     }
 }

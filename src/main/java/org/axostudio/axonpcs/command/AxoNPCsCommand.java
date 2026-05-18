@@ -14,6 +14,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
+    private static final List<String> SUBCOMMANDS = List.of("version", "reload", "featureflags");
+
     private final AxoNPCsPlugin plugin;
 
     public AxoNPCsCommand(AxoNPCsPlugin plugin) {
@@ -66,9 +68,24 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return filter(List.of("version", "reload", "featureflags"), args[0]);
+            return filter(permittedSubcommands(sender), args[0]);
         }
         return List.of();
+    }
+
+    private List<String> permittedSubcommands(CommandSender sender) {
+        return SUBCOMMANDS.stream()
+                .filter(sub -> PermissionUtil.has(sender, permission(sub)))
+                .toList();
+    }
+
+    private static String permission(String sub) {
+        return switch (sub) {
+            case "version" -> "axonpcs.command.version";
+            case "reload" -> "axonpcs.command.reload";
+            case "featureflags" -> "axonpcs.command.featureflags";
+            default -> "axonpcs.command.*";
+        };
     }
 
     private String featureFlags() {

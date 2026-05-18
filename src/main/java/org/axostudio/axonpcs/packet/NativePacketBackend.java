@@ -6,6 +6,7 @@ import io.netty.channel.ChannelPipeline;
 import org.axostudio.axonpcs.AxoNPCsPlugin;
 import org.axostudio.axonpcs.api.model.NPCActionTrigger;
 import org.axostudio.axonpcs.model.VirtualNPC;
+import org.axostudio.axonpcs.util.SchedulerUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 
 public final class NativePacketBackend implements PacketBackend {
@@ -22,6 +24,7 @@ public final class NativePacketBackend implements PacketBackend {
     private final AxoNPCsPlugin plugin;
     private final Map<UUID, Map<String, NativeNpcSession>> sessions = new ConcurrentHashMap<>();
     private final Set<UUID> injectedPlayers = ConcurrentHashMap.newKeySet();
+    private final Set<SchedulerUtil.TaskHandle> tabRemoveTasks = ConcurrentHashMap.newKeySet();
     private NativePacketFactory packets;
 
     public NativePacketBackend(AxoNPCsPlugin plugin) {
@@ -49,16 +52,22 @@ public final class NativePacketBackend implements PacketBackend {
 
     @Override
     public void disable() {
+        for (SchedulerUtil.TaskHandle task : tabRemoveTasks) {
+            task.cancel();
+        }
+        tabRemoveTasks.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
             hideAll(player);
             uninject(player);
         }
         sessions.clear();
+        injectedPlayers.clear();
+        packets = null;
     }
 
     @Override
     public void inject(Player player) {
-        if (!player.isOnline() || packets == null) {
+        if (plugin.isShuttingDown() || !player.isOnline() || packets == null) {
             return;
         }
         Object channel = packets.channel(player);
@@ -103,6 +112,8 @@ public final class NativePacketBackend implements PacketBackend {
         };
         if (nettyChannel.eventLoop().inEventLoop()) {
             removeTask.run();
+        } else if (plugin.isShuttingDown()) {
+            removeTask.run();
         } else {
             nettyChannel.eventLoop().execute(removeTask);
         }
@@ -110,7 +121,7 @@ public final class NativePacketBackend implements PacketBackend {
 
     @Override
     public boolean show(Player player, VirtualNPC npc) {
-        if (packets == null || !player.isOnline()) {
+        if (plugin.isShuttingDown() || packets == null || !player.isOnline()) {
             return false;
         }
         if (!npc.getType().equalsIgnoreCase("PLAYER")) {
@@ -181,7 +192,7 @@ public final class NativePacketBackend implements PacketBackend {
 
     @Override
     public void updateRotation(VirtualNPC npc) {
-        if (packets == null) {
+        if (plugin.isShuttingDown() || packets == null) {
             return;
         }
         for (Map.Entry<UUID, Map<String, NativeNpcSession>> entry : sessions.entrySet()) {
@@ -216,9 +227,17 @@ public final class NativePacketBackend implements PacketBackend {
     }
 
     private void scheduleTabRemove(Player player, VirtualNPC npc, NativeNpcSession session) {
-        plugin.getSchedulerUtil().runEntityDelayed(player, () -> {
+        if (plugin.isShuttingDown()) {
+            return;
+        }
+        AtomicReference<SchedulerUtil.TaskHandle> handleRef = new AtomicReference<>();
+        SchedulerUtil.TaskHandle handle = plugin.getSchedulerUtil().runEntityDelayed(player, () -> {
+            SchedulerUtil.TaskHandle task = handleRef.get();
+            if (task != null) {
+                tabRemoveTasks.remove(task);
+            }
             Map<String, NativeNpcSession> playerSessions = sessions.get(player.getUniqueId());
-            if (playerSessions == null || playerSessions.get(npc.getId()) != session || packets == null) {
+            if (plugin.isShuttingDown() || playerSessions == null || playerSessions.get(npc.getId()) != session || packets == null) {
                 return;
             }
             try {
@@ -227,10 +246,12 @@ public final class NativePacketBackend implements PacketBackend {
                 plugin.getLogger().log(Level.FINE, "Could not remove native NPC " + npc.getId() + " from tab list", exception);
             }
         }, 40L);
+        handleRef.set(handle);
+        tabRemoveTasks.add(handle);
     }
 
     private boolean handleInboundPacket(UUID playerId, Object packet) {
-        if (!injectedPlayers.contains(playerId) || packets == null) {
+        if (plugin.isShuttingDown() || !injectedPlayers.contains(playerId) || packets == null) {
             return false;
         }
         NPCActionTrigger trigger = packets.interactionTrigger(packet);
@@ -246,6 +267,9 @@ public final class NativePacketBackend implements PacketBackend {
             return false;
         }
         boolean matched = plugin.getViewerManager().findVisibleByEntityId(playerId, entityId).map(npc -> {
+            if (plugin.isShuttingDown()) {
+                return false;
+            }
             plugin.getSchedulerUtil().runEntity(player, () -> plugin.getActionManager().handleInteract(player, npc, trigger));
             return true;
         }).orElse(false);

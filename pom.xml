@@ -6,7 +6,7 @@
 
     <groupId>org.axostudio</groupId>
     <artifactId>AxoNPCs</artifactId>
-    <version>1.0.8-alfa</version>
+    <version>1.0.9-alfa</version>
 
     <properties>
         <maven.compiler.release>25</maven.compiler.release>

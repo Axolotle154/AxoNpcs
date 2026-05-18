@@ -33,9 +33,11 @@ public final class AxoNPCsPlugin extends JavaPlugin {
     private NPCActionManager actionManager;
     private SkinManager skinManager;
     private AxoNPCsAPI api;
+    private volatile boolean shuttingDown;
 
     @Override
     public void onEnable() {
+        shuttingDown = false;
         saveDefaultConfig();
         createDataDirectories();
 
@@ -68,15 +70,21 @@ public final class AxoNPCsPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        shuttingDown = true;
         if (viewerManager != null) {
-            viewerManager.hideAll();
+            viewerManager.shutdownNow();
         }
         if (api != null) {
             AxoNPCsProvider.unregister(api);
+            api = null;
         }
         if (packetManager != null) {
             packetManager.disable();
         }
+    }
+
+    public boolean isShuttingDown() {
+        return shuttingDown || !isEnabled();
     }
 
     public SchedulerUtil getSchedulerUtil() {

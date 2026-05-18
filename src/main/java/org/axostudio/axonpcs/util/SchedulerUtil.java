@@ -12,6 +12,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public final class SchedulerUtil {
+    private static final TaskHandle NOOP_TASK = () -> {
+    };
+
     private final Plugin plugin;
     private final boolean foliaLike;
 
@@ -25,90 +28,125 @@ public final class SchedulerUtil {
     }
 
     public TaskHandle runGlobal(Runnable runnable) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike) {
             Object scheduler = invokeStatic(Bukkit.class, "getGlobalRegionScheduler");
-            Object task = invoke(scheduler, "run", new Class<?>[]{Plugin.class, Consumer.class}, plugin, consumer(runnable));
+            Object task = invoke(scheduler, "run", new Class<?>[]{Plugin.class, Consumer.class}, plugin, guardedConsumer(runnable));
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTask(plugin, runnable);
+        BukkitTask task = Bukkit.getScheduler().runTask(plugin, guardedRunnable(runnable));
         return task::cancel;
     }
 
     public TaskHandle runAsync(Runnable runnable) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike) {
             Object scheduler = invokeStatic(Bukkit.class, "getAsyncScheduler");
-            Object task = invoke(scheduler, "runNow", new Class<?>[]{Plugin.class, Consumer.class}, plugin, consumer(runnable));
+            Object task = invoke(scheduler, "runNow", new Class<?>[]{Plugin.class, Consumer.class}, plugin, guardedConsumer(runnable));
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable);
+        BukkitTask task = Bukkit.getScheduler().runTaskAsynchronously(plugin, guardedRunnable(runnable));
         return task::cancel;
     }
 
     public TaskHandle runEntity(Player player, Runnable runnable) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike) {
             Object scheduler = invoke(player, "getScheduler", new Class<?>[]{});
-            Object task = invoke(scheduler, "run", new Class<?>[]{Plugin.class, Consumer.class, Runnable.class}, plugin, consumer(runnable), null);
+            Object task = invoke(scheduler, "run", new Class<?>[]{Plugin.class, Consumer.class, Runnable.class}, plugin, guardedConsumer(runnable), null);
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTask(plugin, runnable);
+        BukkitTask task = Bukkit.getScheduler().runTask(plugin, guardedRunnable(runnable));
         return task::cancel;
     }
 
     public TaskHandle runEntityDelayed(Player player, Runnable runnable, long delayTicks) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike) {
             Object scheduler = invoke(player, "getScheduler", new Class<?>[]{});
             Object task = invoke(scheduler, "runDelayed", new Class<?>[]{Plugin.class, Consumer.class, Runnable.class, long.class},
-                    plugin, consumer(runnable), null, delayTicks);
+                    plugin, guardedConsumer(runnable), null, delayTicks);
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, runnable, delayTicks);
+        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, guardedRunnable(runnable), delayTicks);
         return task::cancel;
     }
 
     public TaskHandle runEntityTimer(Player player, Runnable runnable, long initialDelayTicks, long periodTicks) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike) {
             Object scheduler = invoke(player, "getScheduler", new Class<?>[]{});
             Object task = invoke(scheduler, "runAtFixedRate",
                     new Class<?>[]{Plugin.class, Consumer.class, Runnable.class, long.class, long.class},
-                    plugin, consumer(runnable), null, initialDelayTicks, periodTicks);
+                    plugin, guardedConsumer(runnable), null, initialDelayTicks, periodTicks);
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, runnable, initialDelayTicks, periodTicks);
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, guardedRunnable(runnable), initialDelayTicks, periodTicks);
         return task::cancel;
     }
 
     public TaskHandle runRegion(Location location, Runnable runnable) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike && location.getWorld() != null) {
             Object scheduler = invokeStatic(Bukkit.class, "getRegionScheduler");
             try {
-                Object task = invoke(scheduler, "run", new Class<?>[]{Plugin.class, Location.class, Consumer.class}, plugin, location, consumer(runnable));
+                Object task = invoke(scheduler, "run", new Class<?>[]{Plugin.class, Location.class, Consumer.class}, plugin, location, guardedConsumer(runnable));
                 return new ReflectionTaskHandle(task);
             } catch (IllegalStateException ignored) {
                 int chunkX = location.getBlockX() >> 4;
                 int chunkZ = location.getBlockZ() >> 4;
                 Object task = invoke(scheduler, "run",
                         new Class<?>[]{Plugin.class, org.bukkit.World.class, int.class, int.class, Consumer.class},
-                        plugin, location.getWorld(), chunkX, chunkZ, consumer(runnable));
+                        plugin, location.getWorld(), chunkX, chunkZ, guardedConsumer(runnable));
                 return new ReflectionTaskHandle(task);
             }
         }
-        BukkitTask task = Bukkit.getScheduler().runTask(plugin, runnable);
+        BukkitTask task = Bukkit.getScheduler().runTask(plugin, guardedRunnable(runnable));
         return task::cancel;
     }
 
     public TaskHandle runAsyncDelayed(Runnable runnable, long delayTicks) {
+        if (!plugin.isEnabled()) {
+            return NOOP_TASK;
+        }
         if (foliaLike) {
             Object scheduler = invokeStatic(Bukkit.class, "getAsyncScheduler");
             Object task = invoke(scheduler, "runDelayed", new Class<?>[]{Plugin.class, Consumer.class, long.class, TimeUnit.class},
-                    plugin, consumer(runnable), delayTicks * 50L, TimeUnit.MILLISECONDS);
+                    plugin, guardedConsumer(runnable), delayTicks * 50L, TimeUnit.MILLISECONDS);
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, runnable, delayTicks);
+        BukkitTask task = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, guardedRunnable(runnable), delayTicks);
         return task::cancel;
     }
 
-    private static Consumer<Object> consumer(Runnable runnable) {
-        return ignored -> runnable.run();
+    private Runnable guardedRunnable(Runnable runnable) {
+        return () -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            runnable.run();
+        };
+    }
+
+    private Consumer<Object> guardedConsumer(Runnable runnable) {
+        return ignored -> {
+            if (!plugin.isEnabled()) {
+                return;
+            }
+            runnable.run();
+        };
     }
 
     private static boolean hasMethod(Class<?> type, String name) {

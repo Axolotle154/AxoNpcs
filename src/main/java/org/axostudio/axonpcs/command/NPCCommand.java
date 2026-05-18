@@ -20,16 +20,34 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class NPCCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "create", "remove", "list", "info", "type", "displayname", "skin", "glowing", "collidable",
             "scale", "movehere", "moveto", "rotate", "nearby", "teleport", "action", "interactioncooldown"
     );
+    private static final List<String> CREATE_OPTIONS = List.of("--position", "--world", "--type");
+    private static final List<String> LIST_OPTIONS = List.of("--type", "--sort");
+    private static final List<String> NPC_TYPES = List.of("PLAYER");
+    private static final List<String> SORT_TYPES = List.of("id", "type", "world");
+    private static final List<String> BOOLEAN_VALUES = List.of("true", "false");
+    private static final List<String> SKIN_VALUES = List.of("@none", "@mirror");
+    private static final List<String> GLOWING_VALUES = List.of(
+            "off", "white", "green", "aqua", "red", "yellow", "blue", "gold", "gray", "dark_gray",
+            "black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple", "light_purple", "pink"
+    );
+    private static final List<String> SCALE_VALUES = List.of("0.5", "1", "1.5", "2");
+    private static final List<String> RADIUS_VALUES = List.of("8", "16", "32", "48", "64");
+    private static final List<String> COOLDOWN_VALUES = List.of("disabled", "0", "1", "1.5", "3", "5");
+    private static final List<String> ACTION_TRIGGERS = List.of("RIGHT_CLICK", "LEFT_CLICK", "ANY");
+    private static final List<String> ACTION_OPERATIONS = List.of("add", "list", "remove");
+    private static final List<String> ACTION_VALUE_HINTS = List.of("{player}", "{npc}", "{world}");
 
     private final AxoNPCsPlugin plugin;
 
@@ -531,25 +549,259 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 0) {
+            return permittedSubcommands(sender);
+        }
         if (args.length == 1) {
-            return filter(SUBCOMMANDS, args[0]);
+            return filter(permittedSubcommands(sender), args[0]);
         }
-        if (args.length == 2 && !args[0].equalsIgnoreCase("create") && !args[0].equalsIgnoreCase("nearby")) {
-            return filter(plugin.getNpcManager().all().stream().map(VirtualNPC::getId).toList(), args[1]);
+
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        if (!sub.equals("help") && !PermissionUtil.hasNpc(sender, permission(sub))) {
+            return List.of();
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("action")) {
-            return filter(List.of("RIGHT_CLICK", "LEFT_CLICK", "ANY"), args[2]);
+
+        switch (sub) {
+            case "help":
+                return args.length == 2 ? filter(List.of("1", "2", "3", "4", "5"), args[1]) : List.of();
+            case "create":
+                return completeCreate(sender, args);
+            case "list":
+                return completeList(args);
+            case "nearby":
+                return args.length == 2 ? filter(RADIUS_VALUES, args[1]) : List.of();
+            case "action":
+                return completeAction(args);
+            case "type":
+                return completeNpcThen(args, 2, npcTypes());
+            case "displayname":
+                return completeNpcThen(args, 2, List.of("@none"));
+            case "skin":
+                return completeNpcThen(args, 2, skinSuggestions());
+            case "glowing":
+                return completeNpcThen(args, 2, GLOWING_VALUES);
+            case "collidable":
+                return completeNpcThen(args, 2, BOOLEAN_VALUES);
+            case "scale":
+                return completeNpcThen(args, 2, SCALE_VALUES);
+            case "moveto":
+                return completeMoveTo(sender, args);
+            case "rotate":
+                return completeRotate(sender, args);
+            case "interactioncooldown":
+                return completeNpcThen(args, 2, COOLDOWN_VALUES);
+            case "remove":
+            case "info":
+            case "movehere":
+            case "teleport":
+                return args.length == 2 ? filter(npcIds(), args[1]) : List.of();
+            default:
+                return List.of();
         }
-        if (args.length == 4 && args[0].equalsIgnoreCase("action")) {
-            return filter(List.of("add", "list", "remove"), args[3]);
+    }
+
+    private List<String> completeCreate(CommandSender sender, String[] args) {
+        int positionIndex = valueIndexForCurrent(args, "--position", 3);
+        if (positionIndex >= 0) {
+            return filter(positionSuggestion(sender, positionIndex), current(args));
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("skin")) {
-            return filter(List.of("@none", "@mirror"), args[2]);
+        if (valueIndexForCurrent(args, "--world", 1) == 0) {
+            return filter(worldNames(), current(args));
         }
-        if (args.length == 3 && args[0].equalsIgnoreCase("glowing")) {
-            return filter(List.of("off", "white", "green", "aqua", "red", "yellow", "blue", "gold", "light_purple"), args[2]);
+        if (valueIndexForCurrent(args, "--type", 1) == 0) {
+            return filter(npcTypes(), current(args));
+        }
+        if (args.length >= 3) {
+            return filter(unusedOptions(args, CREATE_OPTIONS), current(args));
         }
         return List.of();
+    }
+
+    private List<String> completeList(String[] args) {
+        if (valueIndexForCurrent(args, "--type", 1) == 0) {
+            return filter(npcTypes(), current(args));
+        }
+        if (valueIndexForCurrent(args, "--sort", 1) == 0) {
+            return filter(SORT_TYPES, current(args));
+        }
+        return filter(unusedOptions(args, LIST_OPTIONS), current(args));
+    }
+
+    private List<String> completeAction(String[] args) {
+        if (args.length == 2) {
+            return filter(npcIds(), args[1]);
+        }
+        if (args.length == 3) {
+            return filter(ACTION_TRIGGERS, args[2]);
+        }
+        if (args.length == 4) {
+            return filter(ACTION_OPERATIONS, args[3]);
+        }
+        String operation = args[3].toLowerCase(Locale.ROOT);
+        if (operation.equals("add")) {
+            if (args.length == 5) {
+                return filter(plugin.getActionManager().types(), args[4]);
+            }
+            if (args.length >= 6) {
+                return filter(actionValueSuggestions(args[4]), current(args));
+            }
+        }
+        if (operation.equals("remove") && args.length == 5) {
+            return filter(actionIndexes(args[1], args[2]), args[4]);
+        }
+        return List.of();
+    }
+
+    private List<String> completeMoveTo(CommandSender sender, String[] args) {
+        if (args.length == 2) {
+            return filter(npcIds(), args[1]);
+        }
+        if (args.length >= 3 && args.length <= 5) {
+            return filter(positionSuggestion(sender, args.length - 3), current(args));
+        }
+        if (args.length == 6) {
+            return filter(worldNames(), args[5]);
+        }
+        return List.of();
+    }
+
+    private List<String> completeRotate(CommandSender sender, String[] args) {
+        if (args.length == 2) {
+            return filter(npcIds(), args[1]);
+        }
+        if (args.length == 3) {
+            return filter(yawSuggestions(sender), args[2]);
+        }
+        if (args.length == 4) {
+            return filter(pitchSuggestions(sender), args[3]);
+        }
+        return List.of();
+    }
+
+    private List<String> completeNpcThen(String[] args, int valueIndex, List<String> values) {
+        if (args.length == 2) {
+            return filter(npcIds(), args[1]);
+        }
+        if (args.length == valueIndex + 1) {
+            return filter(values, args[valueIndex]);
+        }
+        return List.of();
+    }
+
+    private List<String> permittedSubcommands(CommandSender sender) {
+        return SUBCOMMANDS.stream()
+                .filter(sub -> sub.equals("help") || PermissionUtil.hasNpc(sender, permission(sub)))
+                .toList();
+    }
+
+    private List<String> npcIds() {
+        return plugin.getNpcManager().all().stream().map(VirtualNPC::getId).toList();
+    }
+
+    private List<String> npcTypes() {
+        Set<String> types = new LinkedHashSet<>(NPC_TYPES);
+        plugin.getNpcManager().all().stream()
+                .map(VirtualNPC::getType)
+                .filter(type -> type != null && !type.isBlank())
+                .map(type -> type.toUpperCase(Locale.ROOT))
+                .forEach(types::add);
+        return List.copyOf(types);
+    }
+
+    private List<String> worldNames() {
+        return Bukkit.getWorlds().stream().map(World::getName).toList();
+    }
+
+    private List<String> skinSuggestions() {
+        Set<String> values = new LinkedHashSet<>(SKIN_VALUES);
+        Bukkit.getOnlinePlayers().stream().map(Player::getName).forEach(values::add);
+        return List.copyOf(values);
+    }
+
+    private List<String> actionIndexes(String npcId, String triggerValue) {
+        Optional<VirtualNPC> npc = plugin.getNpcManager().get(npcId);
+        if (npc.isEmpty()) {
+            return List.of();
+        }
+        NPCActionTrigger trigger = NPCActionTrigger.parse(triggerValue);
+        List<String> indexes = new ArrayList<>();
+        for (int i = 1; i <= npc.get().getActions(trigger).size(); i++) {
+            indexes.add(String.valueOf(i));
+        }
+        return indexes;
+    }
+
+    private List<String> actionValueSuggestions(String type) {
+        String normalized = type.toUpperCase(Locale.ROOT);
+        if (normalized.contains("COMMAND") || normalized.equals("SERVER")) {
+            return List.of("say", "spawn", "warp", "{player}", "{npc}", "{world}");
+        }
+        if (normalized.equals("MESSAGE")) {
+            return List.of("<green>Hello", "&aHello", "&#FFAA00Hello", "{player}", "{npc}", "{world}");
+        }
+        return ACTION_VALUE_HINTS;
+    }
+
+    private List<String> positionSuggestion(CommandSender sender, int index) {
+        if (sender instanceof Player player) {
+            Location location = player.getLocation();
+            return switch (index) {
+                case 0 -> List.of(shortNumber(location.getX()));
+                case 1 -> List.of(shortNumber(location.getY()));
+                case 2 -> List.of(shortNumber(location.getZ()));
+                default -> List.of();
+            };
+        }
+        return switch (index) {
+            case 0, 2 -> List.of("0");
+            case 1 -> List.of("64");
+            default -> List.of();
+        };
+    }
+
+    private List<String> yawSuggestions(CommandSender sender) {
+        if (sender instanceof Player player) {
+            return List.of(shortNumber(player.getLocation().getYaw()), "0", "90", "180", "-90");
+        }
+        return List.of("0", "90", "180", "-90");
+    }
+
+    private List<String> pitchSuggestions(CommandSender sender) {
+        if (sender instanceof Player player) {
+            return List.of(shortNumber(player.getLocation().getPitch()), "0", "45", "-45");
+        }
+        return List.of("0", "45", "-45");
+    }
+
+    private static List<String> unusedOptions(String[] args, List<String> options) {
+        Set<String> used = new LinkedHashSet<>();
+        for (String arg : args) {
+            if (arg.startsWith("--")) {
+                used.add(arg.toLowerCase(Locale.ROOT));
+            }
+        }
+        return options.stream().filter(option -> !used.contains(option.toLowerCase(Locale.ROOT))).toList();
+    }
+
+    private static int valueIndexForCurrent(String[] args, String option, int valueCount) {
+        int current = args.length - 1;
+        for (int i = 0; i < current; i++) {
+            if (!args[i].equalsIgnoreCase(option)) {
+                continue;
+            }
+            int consumed = 0;
+            for (int j = i + 1; j < current && !args[j].startsWith("--"); j++) {
+                consumed++;
+            }
+            if (consumed < valueCount && current == i + 1 + consumed) {
+                return consumed;
+            }
+        }
+        return -1;
+    }
+
+    private static String current(String[] args) {
+        return args.length == 0 ? "" : args[args.length - 1];
     }
 
     private static String join(String[] args, int from) {

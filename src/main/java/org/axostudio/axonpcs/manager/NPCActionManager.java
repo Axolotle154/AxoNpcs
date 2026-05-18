@@ -32,6 +32,10 @@ public final class NPCActionManager {
         executors.put(type.toUpperCase(Locale.ROOT), executor);
     }
 
+    public List<String> types() {
+        return executors.keySet().stream().sorted().toList();
+    }
+
     public void handleInteract(Player player, VirtualNPC npc, NPCActionTrigger trigger) {
         AxoNPCInteractEvent event = new AxoNPCInteractEvent(player, npc, trigger);
         plugin.getServer().getPluginManager().callEvent(event);
