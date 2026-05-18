@@ -61,7 +61,6 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         npcManager.reload();
         packetListener = new NPCInteractListener(this);
         PacketEvents.getAPI().getEventManager().registerListener(packetListener, PacketListenerPriority.NORMAL);
-        PacketEvents.getAPI().init();
         PacketEventsGuard.reportViaVersionStatus(this);
 
         registerCommands();
@@ -141,11 +140,18 @@ public final class AxoNPCsPlugin extends JavaPlugin {
 
     private boolean isPacketEventsReady() {
         if (!Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
-            getLogger().severe("PacketEvents is required. Install PacketEvents 2.12.1+ to use AxoNPCs.");
+            getLogger().severe("PacketEvents is required to use AxoNPCs client-side NPCs.");
+            getLogger().severe("Install the external PacketEvents plugin 2.12.1+ and restart the server.");
             return false;
         }
-        if (PacketEvents.getAPI() == null) {
-            getLogger().severe("PacketEvents API is not initialized yet. Check plugin load order.");
+        try {
+            if (PacketEvents.getAPI() == null) {
+                getLogger().severe("PacketEvents API is not initialized yet. Check plugin load order.");
+                return false;
+            }
+        } catch (LinkageError error) {
+            getLogger().severe("PacketEvents is enabled but its classes are not visible to AxoNPCs.");
+            getLogger().severe("Check that the PacketEvents plugin jar is installed correctly.");
             return false;
         }
         return true;
