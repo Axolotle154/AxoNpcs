@@ -8,8 +8,8 @@ import org.axostudio.axonpcs.api.model.NPCSkin;
 import org.axostudio.axonpcs.api.model.NPCSkinMode;
 import org.axostudio.axonpcs.model.NPCPosition;
 import org.axostudio.axonpcs.model.VirtualNPC;
+import org.axostudio.axonpcs.packet.EntityIdAllocator;
 import org.axostudio.axonpcs.util.IdValidator;
-import io.github.retrooper.packetevents.util.SpigotReflectionUtil;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -78,7 +78,7 @@ public final class NPCStorageManager {
         float pitch = (float) (position == null ? 0.0D : position.getDouble("pitch"));
 
         UUID uuid = parseUuid(yaml.getString("uuid"), id);
-        int entityId = yaml.getInt("entity-id", SpigotReflectionUtil.generateEntityId());
+        int entityId = yaml.getInt("entity-id", EntityIdAllocator.nextEntityId());
         VirtualNPC npc = new VirtualNPC(id, uuid, entityId, new NPCPosition(world, x, y, z, yaw, pitch));
         npc.setEnabled(yaml.getBoolean("enabled", true));
         npc.setType(yaml.getString("type", "PLAYER"));

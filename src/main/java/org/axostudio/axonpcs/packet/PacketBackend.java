@@ -6,8 +6,8 @@ import org.bukkit.entity.Player;
 /**
  * Internal packet abstraction used by AxoNPCs.
  *
- * <p>This keeps the rest of the plugin independent from a concrete packet
- * engine, so PacketEvents can be replaced by a native Paper backend later.</p>
+ * <p>This keeps the rest of the plugin independent from the native packet
+ * implementation details.</p>
  */
 public interface PacketBackend {
     String name();

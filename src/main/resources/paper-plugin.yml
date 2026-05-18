@@ -1,5 +1,5 @@
 name: AxoNPCs
-version: 1.0.6-alfa
+version: 1.0.8-alfa
 main: org.axostudio.axonpcs.AxoNPCsPlugin
 api-version: '26.1.2'
 author: AxoStudio
@@ -7,10 +7,6 @@ description: Modern Paper/Folia client-side NPC plugin.
 folia-supported: true
 dependencies:
   server:
-    packetevents:
-      load: BEFORE
-      required: false
-      join-classpath: true
     ProtocolLib:
       load: BEFORE
       required: false

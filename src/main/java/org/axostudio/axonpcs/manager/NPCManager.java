@@ -8,9 +8,9 @@ import org.axostudio.axonpcs.api.model.NPCActionTrigger;
 import org.axostudio.axonpcs.api.model.NPCSkin;
 import org.axostudio.axonpcs.model.NPCPosition;
 import org.axostudio.axonpcs.model.VirtualNPC;
+import org.axostudio.axonpcs.packet.EntityIdAllocator;
 import org.axostudio.axonpcs.storage.NPCStorageManager;
 import org.axostudio.axonpcs.util.IdValidator;
-import io.github.retrooper.packetevents.util.SpigotReflectionUtil;
 import org.bukkit.Location;
 
 import java.util.ArrayList;
@@ -61,7 +61,7 @@ public final class NPCManager {
         VirtualNPC npc = new VirtualNPC(
                 id,
                 UUID.nameUUIDFromBytes(("AxoNPCs:" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                SpigotReflectionUtil.generateEntityId(),
+                EntityIdAllocator.nextEntityId(),
                 NPCPosition.from(location)
         );
         npc.setViewDistance(plugin.getConfig().getDouble("rendering.view-distance", 48.0D));

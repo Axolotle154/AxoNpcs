@@ -1,6 +1,6 @@
 plugin: AxoNPCs
-version: 1.0.6-alfa
+version: 1.0.8-alfa
 paper-api: "26.1.2+"
 folia-api: "26.1.2+"
 java: "25+"
-packet-engine: "PacketEvents 2.12.1 external dependency"
+packet-engine: "Native Paper packets"

@@ -12,8 +12,8 @@ import org.axostudio.axonpcs.manager.NPCActionManager;
 import org.axostudio.axonpcs.manager.NPCManager;
 import org.axostudio.axonpcs.manager.NPCViewerManager;
 import org.axostudio.axonpcs.manager.SkinManager;
-import org.axostudio.axonpcs.packet.NPCPacketManager;
 import org.axostudio.axonpcs.packet.PacketBackend;
+import org.axostudio.axonpcs.packet.PacketBackendFactory;
 import org.axostudio.axonpcs.storage.NPCStorageManager;
 import org.axostudio.axonpcs.util.ColorUtil;
 import org.axostudio.axonpcs.util.SchedulerUtil;
@@ -46,11 +46,12 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         skinManager = new SkinManager(this);
         skinManager.init();
         npcManager = new NPCManager(this, storageManager);
-        packetManager = new NPCPacketManager(this);
+        packetManager = PacketBackendFactory.create(this);
         if (!packetManager.enable()) {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+        getLogger().info("Using packet backend: " + packetManager.name());
         viewerManager = new NPCViewerManager(this);
         actionManager = new NPCActionManager(this);
 
@@ -136,12 +137,12 @@ public final class AxoNPCsPlugin extends JavaPlugin {
 
     private void sendStartupBanner() {
         String[] banner = {
-                "   _____                  _______ ___________________         ",
-                "  /  _  \\ ___  _______    \\      \\\\______   \\_   ___ \\  ______",
-                " /  /_\\  \\\\  \\/  /  _ \\   /   |   \\|     ___/    \\  \\/ /  ___/",
-                "/    |    \\>    <  <_> ) /    |    \\    |   \\     \\____\\___ \\ ",
-                "\\____|__  /__/\\_ \\____/  \\____|__  /____|    \\______  /____  >",
-                "        \\/      \\/               \\/                 \\/     \\/ "
+                "   _____                  _______                        ",
+                "  /  _  \\ ___  _______    \\      \\ ______   ____   ______",
+                " /  /_\\  \\\\  \\/  /  _ \\   /   |   \\\\____ \\_/ ___\\ /  ___/",
+                "/    |    \\>    <  <_> ) /    |    \\  |_> >  \\___ \\___ \\ ",
+                "\\____|__  /__/\\_ \\____/  \\____|__  /   __/ \\___  >____  >",
+                "        \\/      \\/               \\/|__|        \\/     \\/ "
         };
         for (String line : banner) {
             Bukkit.getConsoleSender().sendMessage(ColorUtil.parse("<light_purple>" + line));
