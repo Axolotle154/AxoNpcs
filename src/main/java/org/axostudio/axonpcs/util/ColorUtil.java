@@ -7,13 +7,9 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class ColorUtil {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final Pattern HEX = Pattern.compile("&?#([A-Fa-f0-9]{6})");
-    private static final Pattern LEGACY_HEX = Pattern.compile("&\\#([A-Fa-f0-9]{6})");
     private static final Map<Character, String> LEGACY_TAGS = Map.ofEntries(
             Map.entry('0', "black"),
             Map.entry('1', "dark_blue"),
@@ -61,26 +57,55 @@ public final class ColorUtil {
     }
 
     public static String toMiniMessage(String input) {
-        Matcher legacyHex = LEGACY_HEX.matcher(input);
-        String withHex = legacyHex.replaceAll("<#$1>");
-        Matcher plainHex = HEX.matcher(withHex);
-        withHex = plainHex.replaceAll("<#$1>");
-
-        StringBuilder builder = new StringBuilder(withHex.length() + 16);
-        for (int i = 0; i < withHex.length(); i++) {
-            char current = withHex.charAt(i);
-            if ((current == '&' || current == '§') && i + 1 < withHex.length()) {
-                char code = Character.toLowerCase(withHex.charAt(++i));
+        StringBuilder builder = new StringBuilder(input.length() + 16);
+        boolean insideMiniMessageTag = false;
+        for (int i = 0; i < input.length(); i++) {
+            char current = input.charAt(i);
+            if (current == '<') {
+                insideMiniMessageTag = true;
+                builder.append(current);
+                continue;
+            }
+            if (current == '>') {
+                insideMiniMessageTag = false;
+                builder.append(current);
+                continue;
+            }
+            if (!insideMiniMessageTag && (current == '&' || current == '§') && i + 1 < input.length()) {
+                if (input.charAt(i + 1) == '#' && hasHexColor(input, i + 2)) {
+                    builder.append("<#").append(input, i + 2, i + 8).append('>');
+                    i += 7;
+                    continue;
+                }
+                char code = Character.toLowerCase(input.charAt(i + 1));
                 String tag = LEGACY_TAGS.get(code);
                 if (tag != null) {
                     builder.append('<').append(tag).append('>');
+                    i++;
                     continue;
                 }
-                builder.append(current).append(code);
+                builder.append(current).append(input.charAt(i + 1));
+                i++;
                 continue;
             }
             builder.append(current);
         }
         return builder.toString();
+    }
+
+    private static boolean hasHexColor(String input, int start) {
+        if (start + 6 > input.length()) {
+            return false;
+        }
+        for (int index = start; index < start + 6; index++) {
+            char value = input.charAt(index);
+            boolean digit = value >= '0' && value <= '9';
+            boolean lower = value >= 'a' && value <= 'f';
+            boolean upper = value >= 'A' && value <= 'F';
+            if (!digit && !lower && !upper) {
+                return false;
+            }
+        }
+        return true;
     }
 }
