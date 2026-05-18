@@ -118,11 +118,10 @@ public final class AxoNPCsPlugin extends JavaPlugin {
     private void createDataDirectories() {
         for (String path : new String[]{"languages", "logs", "skins", "npcs"}) {
             File file = new File(getDataFolder(), path);
-            if (!file.exists() && !file.mkdirs()) {
+        if (!file.exists() && !file.mkdirs()) {
                 getLogger().warning("Could not create " + path + " directory");
             }
         }
-        saveResource("version.yml", false);
     }
 
     private void registerCommands() {

@@ -27,5 +27,6 @@ npc-cooldown: "<yellow>Espera <white>{seconds}s</white> antes de interactuar de 
 help-1: "<white>/npc create <id> [--position <x y z>] [--world <world>] [--type <type>]"
 help-2: "<white>/npc remove <id> <gray>|</gray> /npc list <gray>|</gray> /npc info <id>"
 help-3: "<white>/npc displayname|skin|glowing|collidable|scale <id> ..."
-help-4: "<white>/npc movehere|moveto|rotate|nearby|teleport <id>"
-help-5: "<white>/npc action <id> <trigger> add|list|remove ..."
+help-4: "<white>/npc movehere|moveto|center|rotate|nearby|teleport <id>"
+help-5: "<white>/npc turn_to_player <id> [true|false] <gray>|</gray> /npc turn_to_player_distance <id> [distancia]"
+help-6: "<white>/npc action <id> <trigger> add|list|remove ..."

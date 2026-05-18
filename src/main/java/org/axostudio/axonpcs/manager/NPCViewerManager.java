@@ -3,6 +3,7 @@ package org.axostudio.axonpcs.manager;
 import org.axostudio.axonpcs.AxoNPCsPlugin;
 import org.axostudio.axonpcs.api.event.AxoNPCHideEvent;
 import org.axostudio.axonpcs.api.event.AxoNPCShowEvent;
+import org.axostudio.axonpcs.model.NPCPosition;
 import org.axostudio.axonpcs.model.VirtualNPC;
 import org.axostudio.axonpcs.util.SchedulerUtil;
 import org.bukkit.Bukkit;
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NPCViewerManager {
     private final AxoNPCsPlugin plugin;
     private final Map<UUID, Set<String>> visible = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<String>> turningToPlayer = new ConcurrentHashMap<>();
     private final Map<UUID, Set<SchedulerUtil.TaskHandle>> tasks = new ConcurrentHashMap<>();
 
     public NPCViewerManager(AxoNPCsPlugin plugin) {
@@ -59,6 +61,9 @@ public final class NPCViewerManager {
             boolean currentlyVisible = isVisible(player, npc);
             if (shouldSee && !currentlyVisible) {
                 show(player, npc);
+            }
+            if (shouldSee && isVisible(player, npc)) {
+                updateTurnToPlayer(player, playerLocation, npc);
             } else if (!shouldSee && currentlyVisible) {
                 hide(player, npc);
             }
@@ -85,6 +90,7 @@ public final class NPCViewerManager {
         if (playerVisible == null || !playerVisible.remove(npc.getId())) {
             return;
         }
+        forgetTurnToPlayer(player.getUniqueId(), npc.getId());
         plugin.getPacketManager().hide(player, npc);
         plugin.getServer().getPluginManager().callEvent(new AxoNPCHideEvent(player, npc));
         if (playerVisible.isEmpty()) {
@@ -98,6 +104,7 @@ public final class NPCViewerManager {
             return;
         }
         Set<String> ids = visible.remove(player.getUniqueId());
+        turningToPlayer.remove(player.getUniqueId());
         if (ids == null || ids.isEmpty()) {
             return;
         }
@@ -194,6 +201,7 @@ public final class NPCViewerManager {
 
     public void hideAllImmediately(Player player) {
         visible.remove(player.getUniqueId());
+        turningToPlayer.remove(player.getUniqueId());
         if (plugin.getPacketManager() != null) {
             plugin.getPacketManager().hideAll(player);
         }
@@ -203,6 +211,7 @@ public final class NPCViewerManager {
         Set<String> playerVisible = visible.get(player.getUniqueId());
         if (playerVisible != null) {
             playerVisible.remove(npc.getId());
+            forgetTurnToPlayer(player.getUniqueId(), npc.getId());
             if (playerVisible.isEmpty()) {
                 visible.remove(player.getUniqueId());
             }
@@ -225,6 +234,65 @@ public final class NPCViewerManager {
         double distanceSquared = playerLocation.distanceSquared(npc.getLocation());
         double viewDistance = npc.getViewDistance();
         return distanceSquared <= viewDistance * viewDistance;
+    }
+
+    private void updateTurnToPlayer(Player player, Location playerLocation, VirtualNPC npc) {
+        if (!npc.isTurnToPlayer() || playerLocation.getWorld() == null || !playerLocation.getWorld().getName().equals(npc.getPosition().world())) {
+            resetTurnToPlayer(player, npc);
+            return;
+        }
+        Location npcLocation = npc.getLocation();
+        if (npcLocation.getWorld() == null) {
+            resetTurnToPlayer(player, npc);
+            return;
+        }
+        double distance = npc.getTurnToPlayerDistance();
+        if (playerLocation.distanceSquared(npcLocation) > distance * distance) {
+            resetTurnToPlayer(player, npc);
+            return;
+        }
+        float yaw = yawTo(player, npc);
+        float pitch = pitchTo(player, npc);
+        turningToPlayer.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet()).add(npc.getId());
+        plugin.getPacketManager().updateRotation(player, npc, yaw, pitch);
+    }
+
+    private void resetTurnToPlayer(Player player, VirtualNPC npc) {
+        if (!forgetTurnToPlayer(player.getUniqueId(), npc.getId())) {
+            return;
+        }
+        plugin.getPacketManager().updateRotation(player, npc, npc.getPosition().yaw(), npc.getPosition().pitch());
+    }
+
+    private boolean forgetTurnToPlayer(UUID playerId, String npcId) {
+        Set<String> playerTurning = turningToPlayer.get(playerId);
+        if (playerTurning == null) {
+            return false;
+        }
+        boolean removed = playerTurning.remove(npcId);
+        if (playerTurning.isEmpty()) {
+            turningToPlayer.remove(playerId);
+        }
+        return removed;
+    }
+
+    private float yawTo(Player player, VirtualNPC npc) {
+        NPCPosition position = npc.getPosition();
+        Location target = player.getEyeLocation();
+        double dx = target.getX() - position.x();
+        double dz = target.getZ() - position.z();
+        return (float) Math.toDegrees(Math.atan2(-dx, dz));
+    }
+
+    private float pitchTo(Player player, VirtualNPC npc) {
+        NPCPosition position = npc.getPosition();
+        Location target = player.getEyeLocation();
+        double dx = target.getX() - position.x();
+        double dz = target.getZ() - position.z();
+        double eyeY = position.y() + 1.62D * npc.getScale();
+        double dy = target.getY() - eyeY;
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        return (float) -Math.toDegrees(Math.atan2(dy, horizontal));
     }
 
     private void track(Player player, SchedulerUtil.TaskHandle task) {

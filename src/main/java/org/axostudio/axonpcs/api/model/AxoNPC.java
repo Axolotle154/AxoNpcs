@@ -33,6 +33,10 @@ public interface AxoNPC {
 
     double getInteractionCooldownSeconds();
 
+    boolean isTurnToPlayer();
+
+    double getTurnToPlayerDistance();
+
     Map<NPCEquipmentSlot, ItemStack> getEquipment();
 
     List<NPCAction> getActions(NPCActionTrigger trigger);

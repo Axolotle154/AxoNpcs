@@ -30,7 +30,8 @@ import java.util.Set;
 public final class NPCCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = List.of(
             "help", "create", "remove", "list", "info", "type", "displayname", "skin", "glowing", "collidable",
-            "scale", "movehere", "moveto", "rotate", "nearby", "teleport", "action", "interactioncooldown"
+            "scale", "movehere", "moveto", "center", "rotate", "nearby", "teleport", "action", "interactioncooldown",
+            "turn_to_player", "turn_to_player_distance"
     );
     private static final List<String> CREATE_OPTIONS = List.of("--position", "--world", "--type");
     private static final List<String> LIST_OPTIONS = List.of("--type", "--sort");
@@ -45,6 +46,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SCALE_VALUES = List.of("0.5", "1", "1.5", "2");
     private static final List<String> RADIUS_VALUES = List.of("8", "16", "32", "48", "64");
     private static final List<String> COOLDOWN_VALUES = List.of("disabled", "0", "1", "1.5", "3", "5");
+    private static final List<String> TURN_DISTANCE_VALUES = List.of("4", "8", "12", "16", "24", "32");
     private static final List<String> ACTION_TRIGGERS = List.of("RIGHT_CLICK", "LEFT_CLICK", "ANY");
     private static final List<String> ACTION_OPERATIONS = List.of("add", "list", "remove");
     private static final List<String> ACTION_VALUE_HINTS = List.of("{player}", "{npc}", "{world}");
@@ -104,6 +106,9 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                 case "moveto":
                     moveTo(sender, args);
                     break;
+                case "center":
+                    center(sender, args);
+                    break;
                 case "rotate":
                     rotate(sender, args);
                     break;
@@ -118,6 +123,12 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                     break;
                 case "interactioncooldown":
                     interactionCooldown(sender, args);
+                    break;
+                case "turn_to_player":
+                    turnToPlayer(sender, args);
+                    break;
+                case "turn_to_player_distance":
+                    turnToPlayerDistance(sender, args);
                     break;
                 default:
                     plugin.getMessageManager().send(sender, "unknown-command");
@@ -354,6 +365,33 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         updated(sender, npc);
     }
 
+    private void center(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            usage(sender, "/npc center <id>");
+            return;
+        }
+        VirtualNPC npc = requireNPC(sender, args, 1);
+        if (npc == null) {
+            return;
+        }
+        NPCPosition position = npc.getPosition();
+        World world = Bukkit.getWorld(position.world());
+        if (world == null) {
+            usage(sender, "/npc center <id>");
+            return;
+        }
+        Location location = new Location(
+                world,
+                Math.floor(position.x()) + 0.5D,
+                position.y(),
+                Math.floor(position.z()) + 0.5D,
+                position.yaw(),
+                position.pitch()
+        );
+        plugin.getNpcManager().setLocation(npc.getId(), location);
+        updated(sender, npc);
+    }
+
     private void rotate(CommandSender sender, String[] args) {
         VirtualNPC npc = requireNPC(sender, args, 1);
         if (npc == null || args.length < 4) {
@@ -461,6 +499,55 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         updated(sender, npc);
     }
 
+    private void turnToPlayer(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            usage(sender, "/npc turn_to_player <id> [true|false]");
+            return;
+        }
+        VirtualNPC npc = requireNPC(sender, args, 1);
+        if (npc == null) {
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(ColorUtil.parse("<gray>turn-to-player:</gray> <white>" + npc.isTurnToPlayer() + "</white>"));
+            return;
+        }
+        Boolean state = parseState(args[2]);
+        if (state == null) {
+            usage(sender, "/npc turn_to_player <id> [true|false]");
+            return;
+        }
+        npc.setTurnToPlayer(state);
+        plugin.getNpcManager().save(npc);
+        if (!state) {
+            plugin.getPacketManager().updateRotation(npc);
+        }
+        updated(sender, npc);
+    }
+
+    private void turnToPlayerDistance(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            usage(sender, "/npc turn_to_player_distance <id> [distance]");
+            return;
+        }
+        VirtualNPC npc = requireNPC(sender, args, 1);
+        if (npc == null) {
+            return;
+        }
+        if (args.length < 3) {
+            sender.sendMessage(ColorUtil.parse("<gray>turn-to-player-distance:</gray> <white>" + shortNumber(npc.getTurnToPlayerDistance()) + "</white>"));
+            return;
+        }
+        double distance = Double.parseDouble(args[2]);
+        if (distance < 0.0D) {
+            usage(sender, "/npc turn_to_player_distance <id> [distance]");
+            return;
+        }
+        npc.setTurnToPlayerDistance(distance);
+        plugin.getNpcManager().save(npc);
+        updated(sender, npc);
+    }
+
     private VirtualNPC requireNPC(CommandSender sender, String[] args, int index) {
         if (args.length <= index) {
             return null;
@@ -490,7 +577,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendHelp(CommandSender sender) {
-        for (int i = 1; i <= 5; i++) {
+        for (int i = 1; i <= 6; i++) {
             plugin.getMessageManager().send(sender, "help-" + i);
         }
     }
@@ -534,8 +621,13 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             case "scale":
             case "interactioncooldown":
                 return "axonpcs.command.npc.glowing";
+            case "turn_to_player":
+                return "axonpcs.command.npc.turn_to_player";
+            case "turn_to_player_distance":
+                return "axonpcs.command.npc.turn_to_player_distance";
             case "movehere":
             case "moveto":
+            case "center":
             case "rotate":
                 return "axonpcs.command.npc.move";
             case "teleport":
@@ -586,10 +678,16 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                 return completeNpcThen(args, 2, SCALE_VALUES);
             case "moveto":
                 return completeMoveTo(sender, args);
+            case "center":
+                return args.length == 2 ? filter(npcIds(), args[1]) : List.of();
             case "rotate":
                 return completeRotate(sender, args);
             case "interactioncooldown":
                 return completeNpcThen(args, 2, COOLDOWN_VALUES);
+            case "turn_to_player":
+                return completeNpcThen(args, 2, BOOLEAN_VALUES);
+            case "turn_to_player_distance":
+                return completeNpcThen(args, 2, TURN_DISTANCE_VALUES);
             case "remove":
             case "info":
             case "movehere":
@@ -813,6 +911,14 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             builder.append(args[i]);
         }
         return builder.toString();
+    }
+
+    private static Boolean parseState(String input) {
+        return switch (input.toLowerCase(Locale.ROOT)) {
+            case "true", "yes", "on", "enabled", "enable" -> true;
+            case "false", "no", "off", "disabled", "disable" -> false;
+            default -> null;
+        };
     }
 
     private static String shortNumber(double value) {

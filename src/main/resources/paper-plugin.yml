@@ -1,5 +1,5 @@
 name: AxoNPCs
-version: 1.0.8-alfa
+version: ${project.version}
 main: org.axostudio.axonpcs.AxoNPCsPlugin
 api-version: '26.1.2'
 author: AxoStudio
@@ -65,6 +65,10 @@ permissions:
   axonpcs.command.npc.skin:
     default: op
   axonpcs.command.npc.glowing:
+    default: op
+  axonpcs.command.npc.turn_to_player:
+    default: op
+  axonpcs.command.npc.turn_to_player_distance:
     default: op
   axonpcs.command.npc.move:
     default: op

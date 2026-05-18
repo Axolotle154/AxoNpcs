@@ -28,5 +28,7 @@ public interface PacketBackend {
 
     void updateRotation(VirtualNPC npc);
 
+    void updateRotation(Player player, VirtualNPC npc, float yaw, float pitch);
+
     int viewerCount(VirtualNPC npc);
 }

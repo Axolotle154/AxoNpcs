@@ -31,6 +31,8 @@ public final class VirtualNPC implements AxoNPC {
     private volatile double scale = 1.0D;
     private volatile double viewDistance = 48.0D;
     private volatile double interactionCooldownSeconds = 1.5D;
+    private volatile boolean turnToPlayer;
+    private volatile double turnToPlayerDistance = 8.0D;
     private final Map<NPCEquipmentSlot, ItemStack> equipment = new ConcurrentHashMap<>();
     private final Map<NPCActionTrigger, List<NPCAction>> actions = new ConcurrentHashMap<>();
 
@@ -146,6 +148,24 @@ public final class VirtualNPC implements AxoNPC {
 
     public void setInteractionCooldownSeconds(double interactionCooldownSeconds) {
         this.interactionCooldownSeconds = interactionCooldownSeconds;
+    }
+
+    @Override
+    public boolean isTurnToPlayer() {
+        return turnToPlayer;
+    }
+
+    public void setTurnToPlayer(boolean turnToPlayer) {
+        this.turnToPlayer = turnToPlayer;
+    }
+
+    @Override
+    public double getTurnToPlayerDistance() {
+        return turnToPlayerDistance;
+    }
+
+    public void setTurnToPlayerDistance(double turnToPlayerDistance) {
+        this.turnToPlayerDistance = Math.max(0.0D, turnToPlayerDistance);
     }
 
     @Override

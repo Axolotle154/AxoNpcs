@@ -14,7 +14,6 @@ El plugin esta pensado para crear guias, accesos rapidos, decoracion interactiva
 ```text
 AxoNPCs/
 ├─ config.yml
-├─ version.yml
 ├─ languages/
 │  ├─ en.yml
 │  ├─ es.yml
@@ -22,8 +21,6 @@ AxoNPCs/
 ├─ logs/
 ├─ skins/
 └─ npcs/
-   ├─ npc_1.yml
-   ├─ npc_2.yml
    └─ ejemplo.yml
 ```
 
@@ -56,8 +53,11 @@ Comandos de NPC:
 | `/npc glowing <id> <color\|off>` | Activa o desactiva el brillo del NPC con color. |
 | `/npc collidable <id> <true\|false>` | Define si el NPC debe ser colisionable desde el cliente. |
 | `/npc scale <id> <factor>` | Cambia la escala visual del NPC. |
+| `/npc turn_to_player <id> [true\|false]` | Define si el NPC debe mirar al jugador cuando esta cerca. Sin estado muestra el valor actual. |
+| `/npc turn_to_player_distance <id> [distance]` | Cambia la distancia a la que el NPC empieza a mirar al jugador. Sin distancia muestra el valor actual. |
 | `/npc movehere <id>` | Mueve el NPC a la posicion del jugador. Solo jugadores. |
 | `/npc moveto <id> <x> <y> <z> [world]` | Mueve el NPC a coordenadas concretas. |
+| `/npc center <id>` | Centra el NPC en el bloque donde esta, conservando altura y rotacion. |
 | `/npc rotate <id> <yaw> <pitch>` | Cambia la rotacion del NPC. |
 | `/npc teleport <id>` | Teletransporta al jugador al NPC. Solo jugadores. |
 | `/npc action <id> <trigger> add <type> <value>` | Agrega una accion al NPC. |
@@ -99,7 +99,9 @@ En los valores de acciones se pueden usar `{player}`, `{npc}` y `{world}`. Place
 | `axonpcs.command.npc.displayname` | `op` | Cambiar nombre visible con `/npc displayname`. |
 | `axonpcs.command.npc.skin` | `op` | Cambiar skin con `/npc skin`. |
 | `axonpcs.command.npc.glowing` | `op` | Cambiar `glowing`, `collidable`, `scale` e `interactioncooldown`. |
-| `axonpcs.command.npc.move` | `op` | Usar `/npc movehere`, `/npc moveto` y `/npc rotate`. |
+| `axonpcs.command.npc.turn_to_player` | `op` | Usar `/npc turn_to_player`. |
+| `axonpcs.command.npc.turn_to_player_distance` | `op` | Usar `/npc turn_to_player_distance`. |
+| `axonpcs.command.npc.move` | `op` | Usar `/npc movehere`, `/npc moveto`, `/npc center` y `/npc rotate`. |
 | `axonpcs.command.npc.teleport` | `op` | Usar `/npc teleport`. |
 | `axonpcs.command.npc.action` | `op` | Crear, listar y eliminar acciones de NPCs. |
 

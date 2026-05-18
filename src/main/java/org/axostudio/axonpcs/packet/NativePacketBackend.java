@@ -216,6 +216,26 @@ public final class NativePacketBackend implements PacketBackend {
     }
 
     @Override
+    public void updateRotation(Player player, VirtualNPC npc, float yaw, float pitch) {
+        if (plugin.isShuttingDown() || packets == null || player == null || !player.isOnline()) {
+            return;
+        }
+        Map<String, NativeNpcSession> playerSessions = sessions.get(player.getUniqueId());
+        if (playerSessions == null || !playerSessions.containsKey(npc.getId())) {
+            return;
+        }
+        try {
+            packets.send(player, packets.bodyRotation(npc, yaw, pitch));
+            Object headRotation = packets.headRotation(npc, yaw);
+            if (headRotation != null) {
+                packets.send(player, headRotation);
+            }
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException exception) {
+            plugin.getLogger().log(Level.FINE, "Could not update native NPC look target for " + npc.getId(), exception);
+        }
+    }
+
+    @Override
     public int viewerCount(VirtualNPC npc) {
         int count = 0;
         for (Map<String, NativeNpcSession> playerSessions : sessions.values()) {

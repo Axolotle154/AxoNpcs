@@ -1,6 +1,0 @@
-plugin: AxoNPCs
-version: 1.0.8-alfa
-paper-api: "26.1.2+"
-folia-api: "26.1.2+"
-java: "25+"
-packet-engine: "Native Paper packets"

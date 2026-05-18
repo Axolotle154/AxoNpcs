@@ -19,6 +19,8 @@ collidable: false
 scale: 1.0
 view-distance: 48.0
 interaction-cooldown: 1.5
+turn-to-player: false
+turn-to-player-distance: 8.0
 equipment: {}
 actions:
   RIGHT_CLICK:

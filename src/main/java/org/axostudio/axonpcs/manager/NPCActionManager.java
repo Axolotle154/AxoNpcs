@@ -43,8 +43,6 @@ public final class NPCActionManager {
             return;
         }
         if (isCoolingDown(player, npc)) {
-            long remaining = remainingMillis(player, npc);
-            plugin.getMessageManager().send(player, "npc-cooldown", Map.of("seconds", String.format(Locale.US, "%.1f", remaining / 1000.0D)));
             return;
         }
         markCooldown(player, npc);

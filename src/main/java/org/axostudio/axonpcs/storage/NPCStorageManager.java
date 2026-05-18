@@ -36,9 +36,9 @@ public final class NPCStorageManager {
         if (!directory.exists() && !directory.mkdirs()) {
             plugin.getLogger().warning("Could not create NPC directory");
         }
-        plugin.saveResource("npcs/ejemplo.yml", false);
-        plugin.saveResource("npcs/npc_1.yml", false);
-        plugin.saveResource("npcs/npc_2.yml", false);
+        if (!fileFor("ejemplo").exists()) {
+            plugin.saveResource("npcs/ejemplo.yml", false);
+        }
     }
 
     public List<VirtualNPC> loadAll() {
@@ -89,6 +89,8 @@ public final class NPCStorageManager {
         npc.setScale(yaml.getDouble("scale", 1.0D));
         npc.setViewDistance(yaml.getDouble("view-distance", plugin.getConfig().getDouble("rendering.view-distance", 48.0D)));
         npc.setInteractionCooldownSeconds(readCooldown(yaml.get("interaction-cooldown")));
+        npc.setTurnToPlayer(yaml.getBoolean("turn-to-player", false));
+        npc.setTurnToPlayerDistance(yaml.getDouble("turn-to-player-distance", 8.0D));
         readEquipment(npc, yaml.getConfigurationSection("equipment"));
         readActions(npc, yaml.getConfigurationSection("actions"));
         return npc;
@@ -119,6 +121,8 @@ public final class NPCStorageManager {
         yaml.set("scale", npc.getScale());
         yaml.set("view-distance", npc.getViewDistance());
         yaml.set("interaction-cooldown", npc.getInteractionCooldownSeconds() <= 0 ? "disabled" : npc.getInteractionCooldownSeconds());
+        yaml.set("turn-to-player", npc.isTurnToPlayer());
+        yaml.set("turn-to-player-distance", npc.getTurnToPlayerDistance());
         for (Map.Entry<NPCEquipmentSlot, ItemStack> entry : npc.getEquipment().entrySet()) {
             yaml.set("equipment." + entry.getKey().name().toLowerCase(Locale.ROOT), entry.getValue());
         }

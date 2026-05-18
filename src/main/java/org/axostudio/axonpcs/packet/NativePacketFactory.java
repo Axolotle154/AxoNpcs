@@ -126,10 +126,16 @@ final class NativePacketFactory {
     private final Method teamRemovePacket = type("net.minecraft.network.protocol.game.ClientboundSetPlayerTeamPacket")
             .getMethod("createRemovePacket", playerTeamClass);
 
-    private final Class<?> attackPacketClass = type("net.minecraft.network.protocol.game.ServerboundAttackPacket");
+    private final Class<?> attackPacketClass = optionalType("net.minecraft.network.protocol.game.ServerboundAttackPacket");
     private final Class<?> interactPacketClass = type("net.minecraft.network.protocol.game.ServerboundInteractPacket");
-    private final Method attackEntityId = attackPacketClass.getMethod("entityId");
-    private final Method interactEntityId = interactPacketClass.getMethod("entityId");
+    private final Method attackEntityId = optionalMethod(attackPacketClass, "entityId");
+    private final Field attackEntityIdField = optionalField(attackPacketClass, "entityId");
+    private final Method interactEntityId = firstMethod(interactPacketClass, "entityId", "getEntityId");
+    private final Field interactEntityIdField = optionalField(interactPacketClass, "entityId");
+    private final Method interactIsAttack = optionalMethod(interactPacketClass, "isAttack");
+    private final Field interactActionField = optionalField(interactPacketClass, "action");
+    private final Class<?> interactActionClass = optionalType("net.minecraft.network.protocol.game.ServerboundInteractPacket$Action");
+    private final Method interactActionGetType = optionalMethod(interactActionClass, "getType");
 
     NativePacketFactory(AxoNPCsPlugin plugin) throws ReflectiveOperationException {
         this.plugin = plugin;
@@ -253,10 +259,18 @@ final class NativePacketFactory {
     }
 
     Object bodyRotation(VirtualNPC npc) throws ReflectiveOperationException {
-        return bodyRotationConstructor.newInstance(npc.getEntityId(), packedAngle(npc.getPosition().yaw()), packedAngle(npc.getPosition().pitch()), true);
+        return bodyRotation(npc, npc.getPosition().yaw(), npc.getPosition().pitch());
+    }
+
+    Object bodyRotation(VirtualNPC npc, float yaw, float pitch) throws ReflectiveOperationException {
+        return bodyRotationConstructor.newInstance(npc.getEntityId(), packedAngle(yaw), packedAngle(pitch), true);
     }
 
     Object headRotation(VirtualNPC npc) throws ReflectiveOperationException {
+        return headRotation(npc, npc.getPosition().yaw());
+    }
+
+    Object headRotation(VirtualNPC npc, float yaw) throws ReflectiveOperationException {
         if (unsafe == null) {
             return null;
         }
@@ -264,7 +278,7 @@ final class NativePacketFactory {
         long entityIdOffset = (Long) unsafeObjectFieldOffset.invoke(unsafe, headRotationEntityIdField);
         long headRotOffset = (Long) unsafeObjectFieldOffset.invoke(unsafe, headRotationValueField);
         unsafePutInt.invoke(unsafe, packet, entityIdOffset, npc.getEntityId());
-        unsafePutByte.invoke(unsafe, packet, headRotOffset, packedAngle(npc.getPosition().yaw()));
+        unsafePutByte.invoke(unsafe, packet, headRotOffset, packedAngle(yaw));
         return packet;
     }
 
@@ -277,26 +291,57 @@ final class NativePacketFactory {
     }
 
     NPCActionTrigger interactionTrigger(Object packet) {
-        if (attackPacketClass.isInstance(packet)) {
+        if (attackPacketClass != null && attackPacketClass.isInstance(packet)) {
             return NPCActionTrigger.LEFT_CLICK;
         }
         if (interactPacketClass.isInstance(packet)) {
-            return NPCActionTrigger.RIGHT_CLICK;
+            return interactIsAttack(packet) ? NPCActionTrigger.LEFT_CLICK : NPCActionTrigger.RIGHT_CLICK;
         }
         return null;
     }
 
     int interactionEntityId(Object packet) {
         try {
-            if (attackPacketClass.isInstance(packet)) {
-                return (Integer) attackEntityId.invoke(packet);
+            if (attackPacketClass != null && attackPacketClass.isInstance(packet)) {
+                return entityId(packet, attackEntityId, attackEntityIdField);
             }
             if (interactPacketClass.isInstance(packet)) {
-                return (Integer) interactEntityId.invoke(packet);
+                return entityId(packet, interactEntityId, interactEntityIdField);
             }
         } catch (ReflectiveOperationException ignored) {
         }
         return -1;
+    }
+
+    private boolean interactIsAttack(Object packet) {
+        try {
+            if (interactIsAttack != null) {
+                return Boolean.TRUE.equals(interactIsAttack.invoke(packet));
+            }
+            if (interactActionField == null || interactActionGetType == null) {
+                return false;
+            }
+            Object action = interactActionField.get(packet);
+            if (action == null || !interactActionClass.isInstance(action)) {
+                return false;
+            }
+            Object type = interactActionGetType.invoke(action);
+            return type instanceof Enum<?> enumValue && "ATTACK".equals(enumValue.name());
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private int entityId(Object packet, Method method, Field field) throws ReflectiveOperationException {
+        Object value;
+        if (method != null) {
+            value = method.invoke(packet);
+        } else if (field != null) {
+            value = field.get(packet);
+        } else {
+            return -1;
+        }
+        return value instanceof Integer id ? id : -1;
     }
 
     private Object team(NativePacketBackend.NativeNpcSession session) throws ReflectiveOperationException {
@@ -433,6 +478,50 @@ final class NativePacketFactory {
         Constructor<?> constructor = type(className).getDeclaredConstructor(parameters);
         constructor.setAccessible(true);
         return constructor;
+    }
+
+    private static Class<?> optionalType(String name) {
+        try {
+            return type(name);
+        } catch (ClassNotFoundException | LinkageError exception) {
+            return null;
+        }
+    }
+
+    private static Method firstMethod(Class<?> type, String... names) {
+        for (String name : names) {
+            Method method = optionalMethod(type, name);
+            if (method != null) {
+                return method;
+            }
+        }
+        return null;
+    }
+
+    private static Method optionalMethod(Class<?> type, String name, Class<?>... parameters) {
+        if (type == null) {
+            return null;
+        }
+        try {
+            Method method = type.getMethod(name, parameters);
+            method.setAccessible(true);
+            return method;
+        } catch (NoSuchMethodException | SecurityException exception) {
+            return null;
+        }
+    }
+
+    private static Field optionalField(Class<?> type, String name) {
+        if (type == null) {
+            return null;
+        }
+        try {
+            Field field = type.getDeclaredField(name);
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException | SecurityException exception) {
+            return null;
+        }
     }
 
     private static Object staticField(String className, String fieldName) throws ReflectiveOperationException {
