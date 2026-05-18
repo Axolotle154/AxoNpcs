@@ -50,24 +50,60 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         }
         try {
             switch (sub) {
-                case "create" -> create(sender, args);
-                case "remove" -> remove(sender, args);
-                case "list" -> list(sender, args);
-                case "info" -> info(sender, args);
-                case "type" -> type(sender, args);
-                case "displayname" -> displayName(sender, args);
-                case "skin" -> skin(sender, args);
-                case "glowing" -> glowing(sender, args);
-                case "collidable" -> collidable(sender, args);
-                case "scale" -> scale(sender, args);
-                case "movehere" -> moveHere(sender, args);
-                case "moveto" -> moveTo(sender, args);
-                case "rotate" -> rotate(sender, args);
-                case "nearby" -> nearby(sender, args);
-                case "teleport" -> teleport(sender, args);
-                case "action" -> action(sender, args);
-                case "interactioncooldown" -> interactionCooldown(sender, args);
-                default -> plugin.getMessageManager().send(sender, "unknown-command");
+                case "create":
+                    create(sender, args);
+                    break;
+                case "remove":
+                    remove(sender, args);
+                    break;
+                case "list":
+                    list(sender, args);
+                    break;
+                case "info":
+                    info(sender, args);
+                    break;
+                case "type":
+                    type(sender, args);
+                    break;
+                case "displayname":
+                    displayName(sender, args);
+                    break;
+                case "skin":
+                    skin(sender, args);
+                    break;
+                case "glowing":
+                    glowing(sender, args);
+                    break;
+                case "collidable":
+                    collidable(sender, args);
+                    break;
+                case "scale":
+                    scale(sender, args);
+                    break;
+                case "movehere":
+                    moveHere(sender, args);
+                    break;
+                case "moveto":
+                    moveTo(sender, args);
+                    break;
+                case "rotate":
+                    rotate(sender, args);
+                    break;
+                case "nearby":
+                    nearby(sender, args);
+                    break;
+                case "teleport":
+                    teleport(sender, args);
+                    break;
+                case "action":
+                    action(sender, args);
+                    break;
+                case "interactioncooldown":
+                    interactionCooldown(sender, args);
+                    break;
+                default:
+                    plugin.getMessageManager().send(sender, "unknown-command");
+                    break;
             }
         } catch (NumberFormatException exception) {
             plugin.getMessageManager().send(sender, "invalid-usage", Map.of("usage", "/" + label + " help"));
@@ -87,7 +123,8 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             plugin.getMessageManager().send(sender, "npc-exists", Map.of("id", id));
             return;
         }
-        Location base = sender instanceof Player player ? player.getLocation() : null;
+        Player playerSender = sender instanceof Player ? (Player) sender : null;
+        Location base = playerSender == null ? null : playerSender.getLocation();
         String worldName = base == null || base.getWorld() == null ? null : base.getWorld().getName();
         double x = base == null ? 0.0D : base.getX();
         double y = base == null ? 64.0D : base.getY();
@@ -97,15 +134,19 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         String type = "PLAYER";
         for (int i = 2; i < args.length; i++) {
             switch (args[i].toLowerCase(Locale.ROOT)) {
-                case "--position" -> {
+                case "--position":
                     x = Double.parseDouble(args[++i]);
                     y = Double.parseDouble(args[++i]);
                     z = Double.parseDouble(args[++i]);
-                }
-                case "--world" -> worldName = args[++i];
-                case "--type" -> type = args[++i].toUpperCase(Locale.ROOT);
-                default -> {
-                }
+                    break;
+                case "--world":
+                    worldName = args[++i];
+                    break;
+                case "--type":
+                    type = args[++i].toUpperCase(Locale.ROOT);
+                    break;
+                default:
+                    break;
             }
         }
         World world = worldName == null ? Bukkit.getWorlds().getFirst() : Bukkit.getWorld(worldName);
@@ -148,11 +189,18 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             String finalTypeFilter = typeFilter;
             npcs.removeIf(npc -> !npc.getType().equalsIgnoreCase(finalTypeFilter));
         }
-        Comparator<VirtualNPC> comparator = switch (sort) {
-            case "type" -> Comparator.comparing(VirtualNPC::getType).thenComparing(VirtualNPC::getId);
-            case "world" -> Comparator.comparing(npc -> npc.getPosition().world());
-            default -> Comparator.comparing(VirtualNPC::getId);
-        };
+        Comparator<VirtualNPC> comparator;
+        switch (sort) {
+            case "type":
+                comparator = Comparator.comparing(VirtualNPC::getType).thenComparing(VirtualNPC::getId);
+                break;
+            case "world":
+                comparator = Comparator.comparing(npc -> npc.getPosition().world());
+                break;
+            default:
+                comparator = Comparator.comparing(VirtualNPC::getId);
+                break;
+        }
         npcs.sort(comparator);
         if (npcs.isEmpty()) {
             plugin.getMessageManager().send(sender, "npc-list-empty");
@@ -259,10 +307,11 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     }
 
     private void moveHere(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) {
+        if (!(sender instanceof Player)) {
             plugin.getMessageManager().send(sender, "player-only");
             return;
         }
+        Player player = (Player) sender;
         VirtualNPC npc = requireNPC(sender, args, 1);
         if (npc != null) {
             plugin.getNpcManager().setLocation(npc.getId(), player.getLocation());
@@ -298,10 +347,11 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     }
 
     private void nearby(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) {
+        if (!(sender instanceof Player)) {
             plugin.getMessageManager().send(sender, "player-only");
             return;
         }
+        Player player = (Player) sender;
         double radius = args.length >= 2 ? Double.parseDouble(args[1]) : 16.0D;
         List<VirtualNPC> nearby = plugin.getNpcManager().all().stream()
                 .filter(npc -> npc.getPosition().world().equals(player.getWorld().getName()))
@@ -317,10 +367,11 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     }
 
     private void teleport(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) {
+        if (!(sender instanceof Player)) {
             plugin.getMessageManager().send(sender, "player-only");
             return;
         }
+        Player player = (Player) sender;
         VirtualNPC npc = requireNPC(sender, args, 1);
         if (npc == null) {
             return;
@@ -338,7 +389,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         NPCActionTrigger trigger = NPCActionTrigger.parse(args[2]);
         String operation = args[3].toLowerCase(Locale.ROOT);
         switch (operation) {
-            case "add" -> {
+            case "add":
                 if (args.length < 6) {
                     usage(sender, "/npc action <id> <trigger> add <type> <value>");
                     return;
@@ -346,8 +397,8 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                 npc.addAction(trigger, new NPCAction(args[4], join(args, 5)));
                 plugin.getNpcManager().save(npc);
                 plugin.getMessageManager().send(sender, "npc-action-added", Map.of("id", npc.getId()));
-            }
-            case "list" -> {
+                break;
+            case "list":
                 List<NPCAction> actions = npc.getActions(trigger);
                 if (actions.isEmpty()) {
                     plugin.getMessageManager().send(sender, "npc-action-list-empty");
@@ -361,8 +412,8 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                             "value", action.value()
                     ));
                 }
-            }
-            case "remove" -> {
+                break;
+            case "remove":
                 if (args.length < 5) {
                     usage(sender, "/npc action <id> <trigger> remove <index>");
                     return;
@@ -374,8 +425,10 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                 } else {
                     plugin.getMessageManager().send(sender, "npc-action-list-empty");
                 }
-            }
-            default -> usage(sender, "/npc action <id> <trigger> add|list|remove ...");
+                break;
+            default:
+                usage(sender, "/npc action <id> <trigger> add|list|remove ...");
+                break;
         }
     }
 
@@ -433,7 +486,8 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendLater(CommandSender sender, String key, Map<String, String> placeholders) {
-        if (sender instanceof Player player) {
+        if (sender instanceof Player) {
+            Player player = (Player) sender;
             plugin.getSchedulerUtil().runEntity(player, () -> plugin.getMessageManager().send(player, key, placeholders));
         } else {
             plugin.getSchedulerUtil().runGlobal(() -> plugin.getMessageManager().send(sender, key, placeholders));
@@ -441,20 +495,38 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     }
 
     private String permission(String sub) {
-        return switch (sub) {
-            case "create" -> "axonpcs.command.npc.create";
-            case "remove" -> "axonpcs.command.npc.remove";
-            case "list", "nearby" -> "axonpcs.command.npc.list";
-            case "info" -> "axonpcs.command.npc.info";
-            case "type" -> "axonpcs.command.npc.type";
-            case "displayname" -> "axonpcs.command.npc.displayname";
-            case "skin" -> "axonpcs.command.npc.skin";
-            case "glowing", "collidable", "scale", "interactioncooldown" -> "axonpcs.command.npc.glowing";
-            case "movehere", "moveto", "rotate" -> "axonpcs.command.npc.move";
-            case "teleport" -> "axonpcs.command.npc.teleport";
-            case "action" -> "axonpcs.command.npc.action";
-            default -> "axonpcs.command.npc.*";
-        };
+        switch (sub) {
+            case "create":
+                return "axonpcs.command.npc.create";
+            case "remove":
+                return "axonpcs.command.npc.remove";
+            case "list":
+            case "nearby":
+                return "axonpcs.command.npc.list";
+            case "info":
+                return "axonpcs.command.npc.info";
+            case "type":
+                return "axonpcs.command.npc.type";
+            case "displayname":
+                return "axonpcs.command.npc.displayname";
+            case "skin":
+                return "axonpcs.command.npc.skin";
+            case "glowing":
+            case "collidable":
+            case "scale":
+            case "interactioncooldown":
+                return "axonpcs.command.npc.glowing";
+            case "movehere":
+            case "moveto":
+            case "rotate":
+                return "axonpcs.command.npc.move";
+            case "teleport":
+                return "axonpcs.command.npc.teleport";
+            case "action":
+                return "axonpcs.command.npc.action";
+            default:
+                return "axonpcs.command.npc.*";
+        }
     }
 
     @Override

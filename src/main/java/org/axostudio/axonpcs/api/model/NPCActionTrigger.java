@@ -6,13 +6,19 @@ public enum NPCActionTrigger {
     ANY;
 
     public static NPCActionTrigger parse(String value) {
-        if (value == null || value.isBlank()) {
+        if (value == null || value.trim().isEmpty()) {
             return RIGHT_CLICK;
         }
-        return switch (value.trim().toUpperCase().replace('-', '_')) {
-            case "LEFT", "LEFT_CLICK", "ATTACK" -> LEFT_CLICK;
-            case "ANY", "BOTH" -> ANY;
-            default -> RIGHT_CLICK;
-        };
+        switch (value.trim().toUpperCase().replace('-', '_')) {
+            case "LEFT":
+            case "LEFT_CLICK":
+            case "ATTACK":
+                return LEFT_CLICK;
+            case "ANY":
+            case "BOTH":
+                return ANY;
+            default:
+                return RIGHT_CLICK;
+        }
     }
 }

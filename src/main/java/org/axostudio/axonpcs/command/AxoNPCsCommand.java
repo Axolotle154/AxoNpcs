@@ -27,7 +27,7 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
-            case "version" -> {
+            case "version":
                 if (!PermissionUtil.has(sender, "axonpcs.command.version")) {
                     plugin.getMessageManager().send(sender, "no-permission");
                     return true;
@@ -36,8 +36,8 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
                         "version", plugin.getPluginMeta().getVersion(),
                         "server", plugin.getServer().getVersion()
                 ));
-            }
-            case "reload" -> {
+                break;
+            case "reload":
                 if (!PermissionUtil.has(sender, "axonpcs.command.reload")) {
                     plugin.getMessageManager().send(sender, "no-permission");
                     return true;
@@ -48,15 +48,17 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
                 int count = plugin.getNpcManager().reload();
                 plugin.getViewerManager().refreshAll();
                 plugin.getMessageManager().send(sender, "reload", Map.of("count", String.valueOf(count)));
-            }
-            case "featureflags" -> {
+                break;
+            case "featureflags":
                 if (!PermissionUtil.has(sender, "axonpcs.command.featureflags")) {
                     plugin.getMessageManager().send(sender, "no-permission");
                     return true;
                 }
                 plugin.getMessageManager().send(sender, "featureflags", Map.of("flags", featureFlags()));
-            }
-            default -> plugin.getMessageManager().send(sender, "unknown-command");
+                break;
+            default:
+                plugin.getMessageManager().send(sender, "unknown-command");
+                break;
         }
         return true;
     }
