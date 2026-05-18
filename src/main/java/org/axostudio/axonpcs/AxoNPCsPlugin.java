@@ -5,6 +5,7 @@ import org.axostudio.axonpcs.api.AxoNPCsAPIImpl;
 import org.axostudio.axonpcs.api.AxoNPCsProvider;
 import org.axostudio.axonpcs.command.AxoNPCsCommand;
 import org.axostudio.axonpcs.command.NPCCommand;
+import org.axostudio.axonpcs.command.PaperBasicCommandAdapter;
 import org.axostudio.axonpcs.listener.NPCInteractListener;
 import org.axostudio.axonpcs.listener.PlayerListener;
 import org.axostudio.axonpcs.manager.MessageManager;
@@ -19,10 +20,10 @@ import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import org.bukkit.Bukkit;
-import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.Collections;
 
 public final class AxoNPCsPlugin extends JavaPlugin {
     private SchedulerUtil schedulerUtil;
@@ -126,17 +127,19 @@ public final class AxoNPCsPlugin extends JavaPlugin {
 
     private void registerCommands() {
         AxoNPCsCommand axoNPCsCommand = new AxoNPCsCommand(this);
-        PluginCommand axonpcs = getCommand("axonpcs");
-        if (axonpcs != null) {
-            axonpcs.setExecutor(axoNPCsCommand);
-            axonpcs.setTabCompleter(axoNPCsCommand);
-        }
+        registerCommand(
+                "axonpcs",
+                "AxoNPCs administrative commands.",
+                Collections.singleton("axonpc"),
+                new PaperBasicCommandAdapter("axonpcs", axoNPCsCommand, axoNPCsCommand)
+        );
 
         NPCCommand npcCommand = new NPCCommand(this);
-        PluginCommand npc = getCommand("npc");
-        if (npc != null) {
-            npc.setExecutor(npcCommand);
-            npc.setTabCompleter(npcCommand);
-        }
+        registerCommand(
+                "npc",
+                "NPC management commands.",
+                Collections.emptyList(),
+                new PaperBasicCommandAdapter("npc", npcCommand, npcCommand)
+        );
     }
 }

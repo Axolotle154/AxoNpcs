@@ -1,20 +1,16 @@
 name: AxoNPCs
-version: 1.0.0
+version: 1.0.1-alfa
 main: org.axostudio.axonpcs.AxoNPCsPlugin
 api-version: '26.1.2'
 author: AxoStudio
 description: Modern Paper/Folia client-side NPC plugin.
 folia-supported: true
-softdepend:
-  - PlaceholderAPI
-commands:
-  axonpcs:
-    description: AxoNPCs administrative commands.
-    usage: /axonpcs <version|reload|featureflags>
-    aliases: [axonpc]
-  npc:
-    description: NPC management commands.
-    usage: /npc help
+dependencies:
+  server:
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: false
 permissions:
   axonpcs.admin:
     description: Full AxoNPCs access.
