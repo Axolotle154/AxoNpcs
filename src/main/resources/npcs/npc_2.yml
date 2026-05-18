@@ -1,0 +1,23 @@
+enabled: false
+id: npc_2
+type: PLAYER
+world: world
+position:
+  x: -4.5
+  y: 64.0
+  z: 0.5
+  yaw: -90.0
+  pitch: 0.0
+display-name: "&#FFAA00NPC 2"
+skin:
+  mode: NONE
+  source: ""
+  value: ""
+  signature: ""
+glowing: off
+collidable: true
+scale: 1.0
+view-distance: 48.0
+interaction-cooldown: disabled
+equipment: {}
+actions: {}

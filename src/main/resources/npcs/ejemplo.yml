@@ -1,0 +1,26 @@
+enabled: false
+id: ejemplo
+type: PLAYER
+world: world
+position:
+  x: 0.5
+  y: 64.0
+  z: 0.5
+  yaw: 0.0
+  pitch: 0.0
+display-name: "<gradient:#ffcc00:#00ffff><bold>Guide</bold></gradient>"
+skin:
+  mode: NONE
+  source: ""
+  value: ""
+  signature: ""
+glowing: off
+collidable: false
+scale: 1.0
+view-distance: 48.0
+interaction-cooldown: 1.5
+equipment: {}
+actions:
+  RIGHT_CLICK:
+    - type: MESSAGE
+      value: "<green>Hello, {player}. I am a client-side NPC."

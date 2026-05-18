@@ -1,0 +1,54 @@
+name: AxoNPCs
+version: 1.0.0
+main: org.axostudio.axonpcs.AxoNPCsPlugin
+api-version: '26.1.2'
+author: AxoStudio
+description: Modern Paper/Folia client-side NPC plugin.
+folia-supported: true
+softdepend:
+  - PlaceholderAPI
+commands:
+  axonpcs:
+    description: AxoNPCs administrative commands.
+    usage: /axonpcs <version|reload|featureflags>
+    aliases: [axonpc]
+  npc:
+    description: NPC management commands.
+    usage: /npc help
+permissions:
+  axonpcs.admin:
+    description: Full AxoNPCs access.
+    default: op
+  axonpcs.command.*:
+    description: Access to all AxoNPCs commands.
+    default: op
+  axonpcs.command.reload:
+    default: op
+  axonpcs.command.version:
+    default: true
+  axonpcs.command.featureflags:
+    default: op
+  axonpcs.command.npc.*:
+    default: op
+  axonpcs.command.npc.create:
+    default: op
+  axonpcs.command.npc.remove:
+    default: op
+  axonpcs.command.npc.list:
+    default: op
+  axonpcs.command.npc.info:
+    default: op
+  axonpcs.command.npc.type:
+    default: op
+  axonpcs.command.npc.displayname:
+    default: op
+  axonpcs.command.npc.skin:
+    default: op
+  axonpcs.command.npc.glowing:
+    default: op
+  axonpcs.command.npc.move:
+    default: op
+  axonpcs.command.npc.teleport:
+    default: op
+  axonpcs.command.npc.action:
+    default: op

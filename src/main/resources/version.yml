@@ -1,0 +1,6 @@
+plugin: AxoNPCs
+version: 1.0.0
+paper-api: "26.1.2+"
+folia-api: "26.1.2+"
+java: "25+"
+packet-engine: "PacketEvents 2.12.1 shaded"

@@ -1,0 +1,25 @@
+language:
+  fallback: en
+  auto-detect-client: true
+  placeholderapi: true
+
+rendering:
+  view-distance: 48.0
+  update-interval-ticks: 10
+  join-delay-ticks: 20
+
+interaction:
+  default-cooldown-seconds: 1.5
+
+feature-flags:
+  packet-npcs: true
+  skins: true
+  mirror-skins: true
+  glowing: true
+  equipment: true
+  scale: true
+  placeholderapi: true
+  folia-scheduler: true
+
+storage:
+  save-on-change: true
