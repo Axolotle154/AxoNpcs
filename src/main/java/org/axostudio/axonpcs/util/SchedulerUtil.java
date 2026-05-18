@@ -139,8 +139,8 @@ public final class SchedulerUtil {
             throw new IllegalStateException("Cannot access scheduler method " + methodName, exception);
         } catch (InvocationTargetException exception) {
             Throwable cause = exception.getCause();
-            if (cause instanceof RuntimeException runtimeException) {
-                throw runtimeException;
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
             }
             throw new IllegalStateException("Scheduler method failed " + methodName, cause);
         }
@@ -151,7 +151,13 @@ public final class SchedulerUtil {
         void cancel();
     }
 
-    private record ReflectionTaskHandle(Object task) implements TaskHandle {
+    private static final class ReflectionTaskHandle implements TaskHandle {
+        private final Object task;
+
+        private ReflectionTaskHandle(Object task) {
+            this.task = task;
+        }
+
         @Override
         public void cancel() {
             if (task == null) {

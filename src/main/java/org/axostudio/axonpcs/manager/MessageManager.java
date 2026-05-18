@@ -56,7 +56,8 @@ public final class MessageManager {
         for (Map.Entry<String, String> entry : placeholders.entrySet()) {
             raw = raw.replace("{" + entry.getKey() + "}", entry.getValue());
         }
-        if (sender instanceof Player player) {
+        if (sender instanceof Player) {
+            Player player = (Player) sender;
             raw = PlaceholderUtil.apply(player, raw, plugin.getConfig().getBoolean("language.placeholderapi", true));
         }
         String prefixText = prefix ? raw(language, "prefix") : "";
@@ -78,9 +79,10 @@ public final class MessageManager {
     }
 
     private String language(CommandSender sender) {
-        if (!(sender instanceof Player player) || !plugin.getConfig().getBoolean("language.auto-detect-client", true)) {
+        if (!(sender instanceof Player) || !plugin.getConfig().getBoolean("language.auto-detect-client", true)) {
             return fallback;
         }
+        Player player = (Player) sender;
         String locale = player.getLocale();
         if (locale == null || locale.isBlank()) {
             return fallback;

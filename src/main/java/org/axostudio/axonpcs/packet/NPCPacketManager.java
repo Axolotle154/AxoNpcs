@@ -128,12 +128,26 @@ public final class NPCPacketManager {
         }
         com.github.retrooper.packetevents.protocol.item.ItemStack packetItem = SpigotConversionUtil.fromBukkitItemStack(itemStack);
         switch (slot) {
-            case HELMET -> packetNpc.setHelmet(packetItem);
-            case CHESTPLATE -> packetNpc.setChestplate(packetItem);
-            case LEGGINGS -> packetNpc.setLeggings(packetItem);
-            case BOOTS -> packetNpc.setBoots(packetItem);
-            case MAIN_HAND -> packetNpc.setMainHand(packetItem);
-            case OFF_HAND -> packetNpc.setOffHand(packetItem);
+            case HELMET:
+                packetNpc.setHelmet(packetItem);
+                break;
+            case CHESTPLATE:
+                packetNpc.setChestplate(packetItem);
+                break;
+            case LEGGINGS:
+                packetNpc.setLeggings(packetItem);
+                break;
+            case BOOTS:
+                packetNpc.setBoots(packetItem);
+                break;
+            case MAIN_HAND:
+                packetNpc.setMainHand(packetItem);
+                break;
+            case OFF_HAND:
+                packetNpc.setOffHand(packetItem);
+                break;
+            default:
+                break;
         }
     }
 

@@ -17,7 +17,7 @@ public final class PlaceholderUtil {
             Class<?> api = Class.forName("me.clip.placeholderapi.PlaceholderAPI");
             Method method = api.getMethod("setPlaceholders", OfflinePlayer.class, String.class);
             Object result = method.invoke(null, player, input);
-            return result instanceof String text ? text : input;
+            return result instanceof String ? (String) result : input;
         } catch (ReflectiveOperationException exception) {
             return input;
         }

@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public final class NPCStorageManager {
@@ -118,10 +119,10 @@ public final class NPCStorageManager {
         yaml.set("scale", npc.getScale());
         yaml.set("view-distance", npc.getViewDistance());
         yaml.set("interaction-cooldown", npc.getInteractionCooldownSeconds() <= 0 ? "disabled" : npc.getInteractionCooldownSeconds());
-        for (var entry : npc.getEquipment().entrySet()) {
+        for (Map.Entry<NPCEquipmentSlot, ItemStack> entry : npc.getEquipment().entrySet()) {
             yaml.set("equipment." + entry.getKey().name().toLowerCase(Locale.ROOT), entry.getValue());
         }
-        for (var entry : npc.getActionsByTrigger().entrySet()) {
+        for (Map.Entry<NPCActionTrigger, List<NPCAction>> entry : npc.getActionsByTrigger().entrySet()) {
             int index = 0;
             for (NPCAction action : entry.getValue()) {
                 String path = "actions." + entry.getKey().name() + "." + index++;
@@ -167,10 +168,14 @@ public final class NPCStorageManager {
     }
 
     private double readCooldown(Object value) {
-        if (value instanceof String text && text.equalsIgnoreCase("disabled")) {
-            return -1.0D;
+        if (value instanceof String) {
+            String text = (String) value;
+            if (text.equalsIgnoreCase("disabled")) {
+                return -1.0D;
+            }
         }
-        if (value instanceof Number number) {
+        if (value instanceof Number) {
+            Number number = (Number) value;
             return number.doubleValue();
         }
         return plugin.getConfig().getDouble("interaction.default-cooldown-seconds", 1.5D);
@@ -185,8 +190,8 @@ public final class NPCStorageManager {
                 NPCEquipmentSlot slot = NPCEquipmentSlot.parse(key);
                 Object raw = section.get(key);
                 ItemStack stack;
-                if (raw instanceof ItemStack itemStack) {
-                    stack = itemStack;
+                if (raw instanceof ItemStack) {
+                    stack = (ItemStack) raw;
                 } else {
                     Material material = Material.matchMaterial(String.valueOf(raw));
                     stack = material == null ? null : new ItemStack(material);
@@ -206,9 +211,11 @@ public final class NPCStorageManager {
             List<NPCAction> actions = new ArrayList<>();
             List<?> list = section.getList(triggerKey, List.of());
             for (Object raw : list) {
-                if (raw instanceof ConfigurationSection actionSection) {
+                if (raw instanceof ConfigurationSection) {
+                    ConfigurationSection actionSection = (ConfigurationSection) raw;
                     actions.add(new NPCAction(actionSection.getString("type", "MESSAGE"), actionSection.getString("value", "")));
-                } else if (raw instanceof java.util.Map<?, ?> map) {
+                } else if (raw instanceof java.util.Map<?, ?>) {
+                    java.util.Map<?, ?> map = (java.util.Map<?, ?>) raw;
                     Object type = map.get("type");
                     Object value = map.get("value");
                     actions.add(new NPCAction(String.valueOf(type == null ? "MESSAGE" : type), String.valueOf(value == null ? "" : value)));

@@ -26,9 +26,10 @@ public final class NPCInteractListener implements PacketListener {
             entityId = new WrapperPlayClientAttack(event).getEntityId();
             trigger = NPCActionTrigger.LEFT_CLICK;
         }
-        if (entityId == -1 || !(event.getPlayer() instanceof Player player)) {
+        if (entityId == -1 || !(event.getPlayer() instanceof Player)) {
             return;
         }
+        Player player = (Player) event.getPlayer();
         int finalEntityId = entityId;
         NPCActionTrigger finalTrigger = trigger;
         plugin.getViewerManager().findVisibleByEntityId(player.getUniqueId(), finalEntityId).ifPresent(npc -> {
