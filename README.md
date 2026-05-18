@@ -2,6 +2,10 @@
 
 AxoNPCs is a Paper/Folia 26.1.2+ plugin for client-side NPCs. NPCs are sent to players with packets and are not spawned as real server entities.
 
+## Required Server Plugins
+
+Install PacketEvents 2.12.1+ on the server. AxoNPCs uses PacketEvents as an external dependency to keep the AxoNPCs jar small and avoid bundling Netty twice.
+
 ## Build
 
 ```bash
@@ -11,7 +15,7 @@ mvn package
 The plugin jar is generated at:
 
 ```text
-target/AxoNPCs-1.0.3-alfa.jar
+target/AxoNPCs-1.0.4-alfa.jar
 ```
 
 ## Runtime Files

@@ -20,7 +20,6 @@ import org.axostudio.axonpcs.util.PacketEventsGuard;
 import org.axostudio.axonpcs.util.SchedulerUtil;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
-import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -40,15 +39,13 @@ public final class AxoNPCsPlugin extends JavaPlugin {
     private NPCInteractListener packetListener;
 
     @Override
-    public void onLoad() {
-        PacketEvents.setAPI(SpigotPacketEventsBuilder.build(this));
-        PacketEvents.getAPI().load();
-    }
-
-    @Override
     public void onEnable() {
         saveDefaultConfig();
         createDataDirectories();
+        if (!isPacketEventsReady()) {
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
 
         schedulerUtil = new SchedulerUtil(this);
         messageManager = new MessageManager(this);
@@ -83,10 +80,6 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         }
         if (api != null) {
             AxoNPCsProvider.unregister(api);
-        }
-        try {
-            PacketEvents.getAPI().terminate();
-        } catch (RuntimeException ignored) {
         }
     }
 
@@ -144,6 +137,18 @@ public final class AxoNPCsPlugin extends JavaPlugin {
                 Collections.emptyList(),
                 new PaperBasicCommandAdapter("npc", npcCommand, npcCommand)
         );
+    }
+
+    private boolean isPacketEventsReady() {
+        if (!Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
+            getLogger().severe("PacketEvents is required. Install PacketEvents 2.12.1+ to use AxoNPCs.");
+            return false;
+        }
+        if (PacketEvents.getAPI() == null) {
+            getLogger().severe("PacketEvents API is not initialized yet. Check plugin load order.");
+            return false;
+        }
+        return true;
     }
 
     private void sendStartupBanner() {
