@@ -63,7 +63,9 @@ public final class NPCViewerManager {
         if (!player.isOnline() || isVisible(player, npc)) {
             return;
         }
-        plugin.getPacketManager().show(player, npc);
+        if (!plugin.getPacketManager().show(player, npc)) {
+            return;
+        }
         visible.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet()).add(npc.getId());
         plugin.getServer().getPluginManager().callEvent(new AxoNPCShowEvent(player, npc));
     }

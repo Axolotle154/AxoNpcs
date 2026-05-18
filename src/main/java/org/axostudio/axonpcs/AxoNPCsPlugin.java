@@ -15,6 +15,8 @@ import org.axostudio.axonpcs.manager.NPCViewerManager;
 import org.axostudio.axonpcs.manager.SkinManager;
 import org.axostudio.axonpcs.packet.NPCPacketManager;
 import org.axostudio.axonpcs.storage.NPCStorageManager;
+import org.axostudio.axonpcs.util.ColorUtil;
+import org.axostudio.axonpcs.util.PacketEventsGuard;
 import org.axostudio.axonpcs.util.SchedulerUtil;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
@@ -63,6 +65,7 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         packetListener = new NPCInteractListener(this);
         PacketEvents.getAPI().getEventManager().registerListener(packetListener, PacketListenerPriority.NORMAL);
         PacketEvents.getAPI().init();
+        PacketEventsGuard.reportViaVersionStatus(this);
 
         registerCommands();
         Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
@@ -70,7 +73,7 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         api = new AxoNPCsAPIImpl(this);
         AxoNPCsProvider.register(api);
         Bukkit.getOnlinePlayers().forEach(player -> viewerManager.start(player));
-        getLogger().info("AxoNPCs enabled with " + npcManager.all().size() + " NPCs.");
+        sendStartupBanner();
     }
 
     @Override
@@ -141,5 +144,22 @@ public final class AxoNPCsPlugin extends JavaPlugin {
                 Collections.emptyList(),
                 new PaperBasicCommandAdapter("npc", npcCommand, npcCommand)
         );
+    }
+
+    private void sendStartupBanner() {
+        String[] banner = {
+                "   _____                  _______ ___________________         ",
+                "  /  _  \\ ___  _______    \\      \\\\______   \\_   ___ \\  ______",
+                " /  /_\\  \\\\  \\/  /  _ \\   /   |   \\|     ___/    \\  \\/ /  ___/",
+                "/    |    \\>    <  <_> ) /    |    \\    |   \\     \\____\\___ \\ ",
+                "\\____|__  /__/\\_ \\____/  \\____|__  /____|    \\______  /____  >",
+                "        \\/      \\/               \\/                 \\/     \\/ "
+        };
+        for (String line : banner) {
+            Bukkit.getConsoleSender().sendMessage(ColorUtil.parse("<light_purple>" + line));
+        }
+        Bukkit.getConsoleSender().sendMessage(ColorUtil.parse(
+                "<green>AxoNPCs se activo correctamente con <white>" + npcManager.all().size() + "</white> NPCs.</green>"
+        ));
     }
 }

@@ -6,6 +6,7 @@ import org.axostudio.axonpcs.api.model.NPCSkin;
 import org.axostudio.axonpcs.api.model.NPCSkinMode;
 import org.axostudio.axonpcs.model.VirtualNPC;
 import org.axostudio.axonpcs.util.ColorUtil;
+import org.axostudio.axonpcs.util.PacketEventsGuard;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
@@ -40,7 +41,10 @@ public final class NPCPacketManager {
         this.plugin = plugin;
     }
 
-    public void show(Player player, VirtualNPC npc) {
+    public boolean show(Player player, VirtualNPC npc) {
+        if (!PacketEventsGuard.canUsePacketEvents(plugin)) {
+            return false;
+        }
         if (!npc.getType().equalsIgnoreCase("PLAYER")) {
             plugin.getLogger().fine("Only PLAYER packet NPCs are implemented right now; got " + npc.getType());
         }
@@ -53,6 +57,7 @@ public final class NPCPacketManager {
         applyMetadata(player, npc);
         applyScale(player, npc);
         sessions.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>()).put(npc.getId(), packetNpc);
+        return true;
     }
 
     public void hide(Player player, VirtualNPC npc) {
@@ -62,6 +67,9 @@ public final class NPCPacketManager {
         }
         NPC packetNpc = playerSessions.remove(npc.getId());
         if (packetNpc == null) {
+            return;
+        }
+        if (!PacketEventsGuard.canUsePacketEvents(plugin)) {
             return;
         }
         Object channel = PacketEvents.getAPI().getPlayerManager().getChannel(player);
@@ -75,6 +83,9 @@ public final class NPCPacketManager {
     public void hideAll(Player player) {
         Map<String, NPC> playerSessions = sessions.remove(player.getUniqueId());
         if (playerSessions == null) {
+            return;
+        }
+        if (!PacketEventsGuard.canUsePacketEvents(plugin)) {
             return;
         }
         Object channel = PacketEvents.getAPI().getPlayerManager().getChannel(player);

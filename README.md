@@ -11,7 +11,7 @@ mvn package
 The plugin jar is generated at:
 
 ```text
-target/AxoNPCs-1.0.1-alfa.jar
+target/AxoNPCs-1.0.2-alfa.jar
 ```
 
 ## Runtime Files
