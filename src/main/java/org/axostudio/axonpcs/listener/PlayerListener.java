@@ -17,12 +17,14 @@ public final class PlayerListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
+        plugin.getPacketManager().inject(event.getPlayer());
         plugin.getViewerManager().start(event.getPlayer());
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getViewerManager().stop(event.getPlayer());
+        plugin.getPacketManager().uninject(event.getPlayer());
     }
 
     @EventHandler

@@ -1,5 +1,5 @@
 name: AxoNPCs
-version: 1.0.5-alfa
+version: 1.0.6-alfa
 main: org.axostudio.axonpcs.AxoNPCsPlugin
 api-version: '26.1.2'
 author: AxoStudio

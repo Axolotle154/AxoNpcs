@@ -4,10 +4,13 @@ import org.axostudio.axonpcs.AxoNPCsPlugin;
 import org.axostudio.axonpcs.api.model.NPCEquipmentSlot;
 import org.axostudio.axonpcs.api.model.NPCSkin;
 import org.axostudio.axonpcs.api.model.NPCSkinMode;
+import org.axostudio.axonpcs.listener.NPCInteractListener;
 import org.axostudio.axonpcs.model.VirtualNPC;
 import org.axostudio.axonpcs.util.ColorUtil;
 import org.axostudio.axonpcs.util.PacketEventsGuard;
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerCommon;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
 import com.github.retrooper.packetevents.protocol.npc.NPC;
@@ -33,14 +36,53 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class NPCPacketManager {
+public final class NPCPacketManager implements PacketBackend {
     private final AxoNPCsPlugin plugin;
     private final Map<UUID, Map<String, NPC>> sessions = new ConcurrentHashMap<>();
+    private PacketListenerCommon packetListener;
 
     public NPCPacketManager(AxoNPCsPlugin plugin) {
         this.plugin = plugin;
     }
 
+    @Override
+    public String name() {
+        return "PacketEvents";
+    }
+
+    @Override
+    public boolean enable() {
+        if (!isPacketEventsReady()) {
+            return false;
+        }
+        packetListener = PacketEvents.getAPI().getEventManager().registerListener(new NPCInteractListener(plugin), PacketListenerPriority.NORMAL);
+        PacketEventsGuard.reportViaVersionStatus(plugin);
+        return true;
+    }
+
+    @Override
+    public void disable() {
+        if (packetListener != null) {
+            try {
+                PacketEvents.getAPI().getEventManager().unregisterListener(packetListener);
+            } catch (LinkageError | RuntimeException ignored) {
+            }
+        }
+        sessions.clear();
+        packetListener = null;
+    }
+
+    @Override
+    public void inject(Player player) {
+        // PacketEvents handles channel injection globally.
+    }
+
+    @Override
+    public void uninject(Player player) {
+        hideAll(player);
+    }
+
+    @Override
     public boolean show(Player player, VirtualNPC npc) {
         if (!PacketEventsGuard.canUsePacketEvents(plugin)) {
             return false;
@@ -60,6 +102,7 @@ public final class NPCPacketManager {
         return true;
     }
 
+    @Override
     public void hide(Player player, VirtualNPC npc) {
         Map<String, NPC> playerSessions = sessions.get(player.getUniqueId());
         if (playerSessions == null) {
@@ -80,6 +123,7 @@ public final class NPCPacketManager {
         }
     }
 
+    @Override
     public void hideAll(Player player) {
         Map<String, NPC> playerSessions = sessions.remove(player.getUniqueId());
         if (playerSessions == null) {
@@ -95,6 +139,7 @@ public final class NPCPacketManager {
         }
     }
 
+    @Override
     public void updateRotation(VirtualNPC npc) {
         for (Map<String, NPC> playerSessions : sessions.values()) {
             NPC packetNpc = playerSessions.get(npc.getId());
@@ -104,6 +149,7 @@ public final class NPCPacketManager {
         }
     }
 
+    @Override
     public int viewerCount(VirtualNPC npc) {
         int count = 0;
         for (Map<String, NPC> playerSessions : sessions.values()) {
@@ -112,6 +158,25 @@ public final class NPCPacketManager {
             }
         }
         return count;
+    }
+
+    private boolean isPacketEventsReady() {
+        if (!plugin.getServer().getPluginManager().isPluginEnabled("packetevents")) {
+            plugin.getLogger().severe("PacketEvents is required to use the current AxoNPCs packet backend.");
+            plugin.getLogger().severe("Install the external PacketEvents plugin 2.12.1+ or switch AxoNPCs to a native backend.");
+            return false;
+        }
+        try {
+            if (PacketEvents.getAPI() == null) {
+                plugin.getLogger().severe("PacketEvents API is not initialized yet. Check plugin load order.");
+                return false;
+            }
+        } catch (LinkageError error) {
+            plugin.getLogger().severe("PacketEvents is enabled but its classes are not visible to AxoNPCs.");
+            plugin.getLogger().severe("Check that the PacketEvents plugin jar is installed correctly.");
+            return false;
+        }
+        return true;
     }
 
     private NPC createPacketNPC(Player viewer, VirtualNPC npc) {
