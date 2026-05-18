@@ -1,0 +1,7 @@
+before_install:
+  - . "$HOME/.sdkman/bin/sdkman-init.sh"
+  - sdk install java 25-tem || sdk install java 25-open
+  - sdk use java 25-tem || sdk use java 25-open
+  - java -version
+install:
+  - sh ./mvnw -B clean install -DskipTests
