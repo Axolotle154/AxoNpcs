@@ -70,6 +70,9 @@ public final class SchedulerUtil {
         if (!plugin.isEnabled()) {
             return NOOP_TASK;
         }
+        if (delayTicks <= 0L) {
+            return runEntity(player, runnable);
+        }
         if (foliaLike) {
             Object scheduler = invoke(player, "getScheduler", new Class<?>[]{});
             Object task = invoke(scheduler, "runDelayed", new Class<?>[]{Plugin.class, Consumer.class, Runnable.class, long.class},
@@ -84,14 +87,16 @@ public final class SchedulerUtil {
         if (!plugin.isEnabled()) {
             return NOOP_TASK;
         }
+        long safeInitialDelayTicks = Math.max(1L, initialDelayTicks);
+        long safePeriodTicks = Math.max(1L, periodTicks);
         if (foliaLike) {
             Object scheduler = invoke(player, "getScheduler", new Class<?>[]{});
             Object task = invoke(scheduler, "runAtFixedRate",
                     new Class<?>[]{Plugin.class, Consumer.class, Runnable.class, long.class, long.class},
-                    plugin, guardedConsumer(runnable), null, initialDelayTicks, periodTicks);
+                    plugin, guardedConsumer(runnable), null, safeInitialDelayTicks, safePeriodTicks);
             return new ReflectionTaskHandle(task);
         }
-        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, guardedRunnable(runnable), initialDelayTicks, periodTicks);
+        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, guardedRunnable(runnable), safeInitialDelayTicks, safePeriodTicks);
         return task::cancel;
     }
 
@@ -120,6 +125,9 @@ public final class SchedulerUtil {
     public TaskHandle runAsyncDelayed(Runnable runnable, long delayTicks) {
         if (!plugin.isEnabled()) {
             return NOOP_TASK;
+        }
+        if (delayTicks <= 0L) {
+            return runAsync(runnable);
         }
         if (foliaLike) {
             Object scheduler = invokeStatic(Bukkit.class, "getAsyncScheduler");

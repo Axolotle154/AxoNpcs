@@ -53,6 +53,25 @@ public final class NPCManager {
         return npcs.containsKey(IdValidator.normalize(id));
     }
 
+    public boolean importNPC(VirtualNPC npc, boolean overwrite) {
+        String id = IdValidator.requireValid(npc.getId());
+        boolean exists = npcs.containsKey(id) || storageManager.exists(id);
+        if (exists && !overwrite) {
+            return false;
+        }
+        VirtualNPC previous = npcs.get(id);
+        if (previous != null && plugin.getViewerManager() != null) {
+            plugin.getViewerManager().hideNPCFromAll(previous);
+        }
+        storageManager.save(npc);
+        if (npc.isEnabled()) {
+            npcs.put(id, npc);
+        } else {
+            npcs.remove(id);
+        }
+        return true;
+    }
+
     public VirtualNPC create(String rawId, Location location) {
         String id = IdValidator.requireValid(rawId);
         if (exists(id)) {
@@ -96,6 +115,9 @@ public final class NPCManager {
     }
 
     public void save(VirtualNPC npc) {
+        if (plugin.getViewerManager() != null) {
+            plugin.getViewerManager().wakeNPC(npc);
+        }
         if (plugin.getConfig().getBoolean("storage.save-on-change", true)) {
             storageManager.save(npc);
         }

@@ -18,7 +18,6 @@ AxoNPCs/
 │  ├─ en.yml
 │  ├─ es.yml
 │  └─ ru.yml
-├─ logs/
 ├─ skins/
 └─ npcs/
    └─ ejemplo.yml
@@ -35,6 +34,7 @@ Comandos principales:
 | `/axonpcs version` | Muestra la version del plugin y del servidor. |
 | `/axonpcs reload` | Recarga configuracion, mensajes y NPCs guardados. Tambien refresca los NPCs visibles. |
 | `/axonpcs featureflags` | Muestra los feature flags activos desde `config.yml`. |
+| `/axonpcs migrate fancynpcs [path] [--overwrite]` | Importa NPCs desde `FancyNpcs/npcs.yml`. Si no pasas ruta, busca `plugins/FancyNpcs/npcs.yml`. |
 | `/axonpc ...` | Alias de `/axonpcs`. |
 
 Comandos de NPC:
@@ -48,7 +48,7 @@ Comandos de NPC:
 | `/npc nearby [radius]` | Lista NPCs cercanos al jugador. Solo jugadores. Por defecto usa radio `16`. |
 | `/npc info <id>` | Muestra datos basicos del NPC: tipo, mundo, posicion y viewers. |
 | `/npc type <id> <type>` | Cambia el tipo guardado del NPC. Actualmente el backend nativo implementa `PLAYER`. |
-| `/npc displayname <id> [name\|@none]` | Consulta o cambia el nombre visible. Usa `@none` para quitarlo. |
+| `/npc displayname <id> [name\|none\|@none]` | Consulta o cambia el nombre visible. Usa `none` o `@none` para quitarlo. |
 | `/npc skin <id> <skin\|@none\|@mirror>` | Cambia la skin. Puede usar un nombre de jugador, quitarla o espejar la del viewer. |
 | `/npc glowing <id> <color\|off>` | Activa o desactiva el brillo del NPC con color. |
 | `/npc collidable <id> <true\|false>` | Define si el NPC debe ser colisionable desde el cliente. |
@@ -73,9 +73,9 @@ Tipos de accion incluidos:
 
 | Tipo | Resultado |
 | --- | --- |
-| `MESSAGE` | Envia un mensaje al jugador. |
-| `PLAYER_COMMAND` o `COMMAND` | Ejecuta un comando como el jugador. |
-| `CONSOLE_COMMAND` o `SERVER` | Ejecuta un comando desde consola. |
+| `message` | Envia un mensaje al jugador. |
+| `player_command` o `command` | Ejecuta un comando como el jugador. |
+| `console_command` o `server` | Ejecuta un comando desde consola. |
 
 En los valores de acciones se pueden usar `{player}`, `{npc}` y `{world}`. PlaceholderAPI tambien se aplica si esta activo en `config.yml`.
 
@@ -90,6 +90,7 @@ En los valores de acciones se pueden usar `{player}`, `{npc}` y `{world}`. Place
 | `axonpcs.command.version` | `true` | Usar `/axonpcs version`. |
 | `axonpcs.command.reload` | `op` | Usar `/axonpcs reload`. |
 | `axonpcs.command.featureflags` | `op` | Usar `/axonpcs featureflags`. |
+| `axonpcs.command.migrate` | `op` | Migrar NPCs desde FancyNpcs. |
 | `axonpcs.command.npc.*` | `op` | Acceso a todos los subcomandos de `/npc`. |
 | `axonpcs.command.npc.create` | `op` | Crear NPCs con `/npc create`. |
 | `axonpcs.command.npc.remove` | `op` | Eliminar NPCs con `/npc remove`. |

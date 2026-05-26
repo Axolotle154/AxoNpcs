@@ -35,9 +35,10 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     );
     private static final List<String> CREATE_OPTIONS = List.of("--position", "--world", "--type");
     private static final List<String> LIST_OPTIONS = List.of("--type", "--sort");
-    private static final List<String> NPC_TYPES = List.of("PLAYER");
+    private static final List<String> NPC_TYPES = List.of("player");
     private static final List<String> SORT_TYPES = List.of("id", "type", "world");
     private static final List<String> BOOLEAN_VALUES = List.of("true", "false");
+    private static final List<String> DISPLAY_NAME_NONE_VALUES = List.of("none", "@none");
     private static final List<String> SKIN_VALUES = List.of("@none", "@mirror");
     private static final List<String> GLOWING_VALUES = List.of(
             "off", "white", "green", "aqua", "red", "yellow", "blue", "gold", "gray", "dark_gray",
@@ -47,7 +48,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
     private static final List<String> RADIUS_VALUES = List.of("8", "16", "32", "48", "64");
     private static final List<String> COOLDOWN_VALUES = List.of("disabled", "0", "1", "1.5", "3", "5");
     private static final List<String> TURN_DISTANCE_VALUES = List.of("4", "8", "12", "16", "24", "32");
-    private static final List<String> ACTION_TRIGGERS = List.of("RIGHT_CLICK", "LEFT_CLICK", "ANY");
+    private static final List<String> ACTION_TRIGGERS = List.of("right_click", "left_click", "any");
     private static final List<String> ACTION_OPERATIONS = List.of("add", "list", "remove");
     private static final List<String> ACTION_VALUE_HINTS = List.of("{player}", "{npc}", "{world}");
 
@@ -266,12 +267,12 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            String current = npc.getDisplayName() == null ? "@none" : npc.getDisplayName();
+            String current = npc.getDisplayName() == null ? "none" : npc.getDisplayName();
             sender.sendMessage(ColorUtil.parse("<gray>display-name:</gray> " + current));
             return;
         }
         String name = join(args, 2);
-        npc.setDisplayName(name.equalsIgnoreCase("@none") ? null : name);
+        npc.setDisplayName(isNoDisplayName(name) ? null : name);
         plugin.getNpcManager().save(npc);
         plugin.getViewerManager().refreshNPC(npc);
         updated(sender, npc);
@@ -464,7 +465,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
                     NPCAction action = actions.get(i);
                     plugin.getMessageManager().send(sender, "npc-action-list-entry", Map.of(
                             "index", String.valueOf(i + 1),
-                            "type", action.type(),
+                            "type", displayActionType(action.type()),
                             "value", action.value()
                     ));
                 }
@@ -663,11 +664,11 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             case "nearby":
                 return args.length == 2 ? filter(RADIUS_VALUES, args[1]) : List.of();
             case "action":
-                return completeAction(args);
+                return completeAction(sender, args);
             case "type":
                 return completeNpcThen(args, 2, npcTypes());
             case "displayname":
-                return completeNpcThen(args, 2, List.of("@none"));
+                return completeNpcThen(args, 2, DISPLAY_NAME_NONE_VALUES);
             case "skin":
                 return completeNpcThen(args, 2, skinSuggestions());
             case "glowing":
@@ -725,7 +726,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         return filter(unusedOptions(args, LIST_OPTIONS), current(args));
     }
 
-    private List<String> completeAction(String[] args) {
+    private List<String> completeAction(CommandSender sender, String[] args) {
         if (args.length == 2) {
             return filter(npcIds(), args[1]);
         }
@@ -738,10 +739,10 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         String operation = args[3].toLowerCase(Locale.ROOT);
         if (operation.equals("add")) {
             if (args.length == 5) {
-                return filter(plugin.getActionManager().types(), args[4]);
+                return filter(actionTypes(), args[4]);
             }
             if (args.length >= 6) {
-                return filter(actionValueSuggestions(args[4]), current(args));
+                return filter(actionValueSuggestions(sender, args[4], args.length == 6), current(args));
             }
         }
         if (operation.equals("remove") && args.length == 5) {
@@ -801,7 +802,7 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         plugin.getNpcManager().all().stream()
                 .map(VirtualNPC::getType)
                 .filter(type -> type != null && !type.isBlank())
-                .map(type -> type.toUpperCase(Locale.ROOT))
+                .map(type -> type.toLowerCase(Locale.ROOT))
                 .forEach(types::add);
         return List.copyOf(types);
     }
@@ -829,15 +830,75 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
         return indexes;
     }
 
-    private List<String> actionValueSuggestions(String type) {
+    private List<String> actionTypes() {
+        return plugin.getActionManager().types().stream()
+                .map(NPCCommand::displayActionType)
+                .toList();
+    }
+
+    private List<String> actionValueSuggestions(CommandSender sender, String type, boolean commandRoot) {
         String normalized = type.toUpperCase(Locale.ROOT);
         if (normalized.contains("COMMAND") || normalized.equals("SERVER")) {
-            return List.of("say", "spawn", "warp", "{player}", "{npc}", "{world}");
+            Set<String> values = new LinkedHashSet<>();
+            if (commandRoot) {
+                values.addAll(serverCommands(sender));
+            }
+            values.addAll(ACTION_VALUE_HINTS);
+            return List.copyOf(values);
         }
         if (normalized.equals("MESSAGE")) {
             return List.of("<green>Hello", "&aHello", "&#FFAA00Hello", "{player}", "{npc}", "{world}");
         }
         return ACTION_VALUE_HINTS;
+    }
+
+    private List<String> serverCommands(CommandSender sender) {
+        Set<String> commands = new LinkedHashSet<>();
+        try {
+            Object commandMap = commandMap();
+            Object knownCommands = commandMap.getClass().getMethod("getKnownCommands").invoke(commandMap);
+            if (!(knownCommands instanceof Map<?, ?> map)) {
+                return List.of();
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Command registeredCommand) {
+                    if (!registeredCommand.testPermissionSilent(sender)) {
+                        continue;
+                    }
+                    addCommandSuggestion(commands, registeredCommand.getName());
+                    registeredCommand.getAliases().forEach(alias -> addCommandSuggestion(commands, alias));
+                    addCommandSuggestion(commands, String.valueOf(entry.getKey()));
+                    continue;
+                }
+                addCommandSuggestion(commands, String.valueOf(entry.getKey()));
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return List.of();
+        }
+        return commands.stream().sorted().toList();
+    }
+
+    private static Object commandMap() throws ReflectiveOperationException {
+        try {
+            return Bukkit.class.getMethod("getCommandMap").invoke(null);
+        } catch (NoSuchMethodException exception) {
+            return Bukkit.getServer().getClass().getMethod("getCommandMap").invoke(Bukkit.getServer());
+        }
+    }
+
+    private static void addCommandSuggestion(Set<String> commands, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        String command = value.trim();
+        if (command.startsWith("/")) {
+            command = command.substring(1);
+        }
+        if (command.isBlank() || command.contains(":")) {
+            return;
+        }
+        commands.add(command.toLowerCase(Locale.ROOT));
     }
 
     private List<String> positionSuggestion(CommandSender sender, int index) {
@@ -911,6 +972,15 @@ public final class NPCCommand implements CommandExecutor, TabCompleter {
             builder.append(args[i]);
         }
         return builder.toString();
+    }
+
+    private static boolean isNoDisplayName(String input) {
+        String normalized = input.trim();
+        return normalized.equalsIgnoreCase("none") || normalized.equalsIgnoreCase("@none");
+    }
+
+    private static String displayActionType(String type) {
+        return type.toLowerCase(Locale.ROOT);
     }
 
     private static Boolean parseState(String input) {

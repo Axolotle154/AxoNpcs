@@ -36,7 +36,12 @@ public final class NPCActionManager {
         return executors.keySet().stream().sorted().toList();
     }
 
+    public void clear(Player player) {
+        cooldowns.remove(player.getUniqueId());
+    }
+
     public void handleInteract(Player player, VirtualNPC npc, NPCActionTrigger trigger) {
+        plugin.getViewerManager().wakeNPC(npc);
         AxoNPCInteractEvent event = new AxoNPCInteractEvent(player, npc, trigger);
         plugin.getServer().getPluginManager().callEvent(event);
         if (event.isCancelled()) {
@@ -66,7 +71,8 @@ public final class NPCActionManager {
     }
 
     private long remainingMillis(Player player, VirtualNPC npc) {
-        if (npc.getInteractionCooldownSeconds() <= 0) {
+        long cooldownMillis = cooldownMillis(npc);
+        if (cooldownMillis <= 0L) {
             return 0L;
         }
         long now = System.currentTimeMillis();
@@ -75,11 +81,21 @@ public final class NPCActionManager {
     }
 
     private void markCooldown(Player player, VirtualNPC npc) {
-        if (npc.getInteractionCooldownSeconds() <= 0) {
+        long cooldownMillis = cooldownMillis(npc);
+        if (cooldownMillis <= 0L) {
             return;
         }
-        long until = System.currentTimeMillis() + (long) (npc.getInteractionCooldownSeconds() * 1000L);
+        long until = System.currentTimeMillis() + cooldownMillis;
         cooldowns.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>()).put(npc.getId(), until);
+    }
+
+    private long cooldownMillis(VirtualNPC npc) {
+        long npcCooldown = npc.getInteractionCooldownSeconds() <= 0.0D ? 0L : (long) (npc.getInteractionCooldownSeconds() * 1000L);
+        if (!plugin.getConfig().getBoolean("optimization.enabled", false)) {
+            return npcCooldown;
+        }
+        long optimizationCooldown = Math.max(0L, plugin.getConfig().getLong("optimization.interaction.cooldown-ms", 500L));
+        return Math.max(npcCooldown, optimizationCooldown);
     }
 
     private String replace(Player player, VirtualNPC npc, String value) {

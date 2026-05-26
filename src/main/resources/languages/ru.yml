@@ -6,6 +6,8 @@ unknown-command: "<red>Неизвестная команда. Используй
 reload: "<green>Загружено NPC из отдельных YAML файлов: {count}."
 version: "<white>AxoNPCs <aqua>{version}</aqua> работает на <gray>{server}</gray>."
 featureflags: "<white>Флаги функций: <gray>{flags}</gray>"
+migrate-fancynpcs-success: "<green>Миграция FancyNpcs завершена: <white>{imported}</white> импортировано, <yellow>{skipped}</yellow> пропущено, <red>{failed}</red> с ошибкой. <gray>{file}</gray>"
+migrate-fancynpcs-failed: "<red>Не удалось выполнить миграцию FancyNpcs: <white>{error}</white>"
 npc-created: "<green>NPC <white>{id}</white> создан."
 npc-removed: "<green>NPC <white>{id}</white> удален."
 npc-not-found: "<red>NPC <white>{id}</white> не найден."

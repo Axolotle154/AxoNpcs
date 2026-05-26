@@ -17,6 +17,7 @@ import org.axostudio.axonpcs.packet.PacketBackendFactory;
 import org.axostudio.axonpcs.storage.NPCStorageManager;
 import org.axostudio.axonpcs.util.ColorUtil;
 import org.axostudio.axonpcs.util.SchedulerUtil;
+import org.axostudio.axonpcs.util.UpdateChecker;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -32,6 +33,7 @@ public final class AxoNPCsPlugin extends JavaPlugin {
     private NPCViewerManager viewerManager;
     private NPCActionManager actionManager;
     private SkinManager skinManager;
+    private UpdateChecker updateChecker;
     private AxoNPCsAPI api;
     private volatile boolean shuttingDown;
 
@@ -56,6 +58,7 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         getLogger().info("Using packet backend: " + packetManager.name());
         viewerManager = new NPCViewerManager(this);
         actionManager = new NPCActionManager(this);
+        updateChecker = new UpdateChecker(this);
 
         npcManager.reload();
 
@@ -66,6 +69,7 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         AxoNPCsProvider.register(api);
         Bukkit.getOnlinePlayers().forEach(player -> viewerManager.start(player));
         sendStartupBanner();
+        updateChecker.check();
     }
 
     @Override
@@ -115,10 +119,14 @@ public final class AxoNPCsPlugin extends JavaPlugin {
         return skinManager;
     }
 
+    public UpdateChecker getUpdateChecker() {
+        return updateChecker;
+    }
+
     private void createDataDirectories() {
-        for (String path : new String[]{"languages", "logs", "skins", "npcs"}) {
+        for (String path : new String[]{"languages", "skins", "npcs"}) {
             File file = new File(getDataFolder(), path);
-        if (!file.exists() && !file.mkdirs()) {
+            if (!file.exists() && !file.mkdirs()) {
                 getLogger().warning("Could not create " + path + " directory");
             }
         }

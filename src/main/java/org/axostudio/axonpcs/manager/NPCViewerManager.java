@@ -18,10 +18,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class NPCViewerManager {
+    private static final long MILLIS_PER_SECOND = 1000L;
+
     private final AxoNPCsPlugin plugin;
     private final Map<UUID, Set<String>> visible = new ConcurrentHashMap<>();
+    private final Map<String, Set<UUID>> viewersByNpc = new ConcurrentHashMap<>();
     private final Map<UUID, Set<String>> turningToPlayer = new ConcurrentHashMap<>();
     private final Map<UUID, Set<SchedulerUtil.TaskHandle>> tasks = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastActiveMillis = new ConcurrentHashMap<>();
+    private final Set<String> sleeping = ConcurrentHashMap.newKeySet();
 
     public NPCViewerManager(AxoNPCsPlugin plugin) {
         this.plugin = plugin;
@@ -32,10 +37,35 @@ public final class NPCViewerManager {
             return;
         }
         stop(player);
-        long delay = plugin.getConfig().getLong("rendering.join-delay-ticks", 20L);
-        long interval = Math.max(1L, plugin.getConfig().getLong("rendering.update-interval-ticks", 10L));
-        track(player, plugin.getSchedulerUtil().runEntityDelayed(player, () -> tick(player), delay));
-        track(player, plugin.getSchedulerUtil().runEntityTimer(player, () -> tick(player), delay + interval, interval));
+        schedule(player);
+    }
+
+    public void restartAll() {
+        if (plugin.isShuttingDown()) {
+            return;
+        }
+        cancelAllTasks();
+        sleeping.clear();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            plugin.getSchedulerUtil().runEntity(player, () -> {
+                if (!player.isOnline()) {
+                    return;
+                }
+                hideAll(player);
+                schedule(player);
+            });
+        }
+    }
+
+    private void schedule(Player player) {
+        long delay = joinDelayTicks();
+        long visibilityInterval = visibilityIntervalTicks();
+        track(player, plugin.getSchedulerUtil().runEntityDelayed(player, () -> refreshVisibility(player), delay));
+        track(player, plugin.getSchedulerUtil().runEntityTimer(player, () -> refreshVisibility(player), delay + visibilityInterval, visibilityInterval));
+        if (rotationEnabled()) {
+            long rotationInterval = rotationIntervalTicks();
+            track(player, plugin.getSchedulerUtil().runEntityTimer(player, () -> updateRotations(player), delay + rotationInterval, rotationInterval));
+        }
     }
 
     public void stop(Player player) {
@@ -48,6 +78,11 @@ public final class NPCViewerManager {
     }
 
     public void tick(Player player) {
+        refreshVisibility(player);
+        updateRotations(player);
+    }
+
+    public void refreshVisibility(Player player) {
         if (plugin.isShuttingDown()) {
             return;
         }
@@ -61,12 +96,36 @@ public final class NPCViewerManager {
             boolean currentlyVisible = isVisible(player, npc);
             if (shouldSee && !currentlyVisible) {
                 show(player, npc);
-            }
-            if (shouldSee && isVisible(player, npc)) {
-                updateTurnToPlayer(player, playerLocation, npc);
-            } else if (!shouldSee && currentlyVisible) {
+            } else if (shouldSee) {
+                addViewer(player.getUniqueId(), npc);
+            } else if (currentlyVisible) {
                 hide(player, npc);
+            } else {
+                updateIdleState(npc);
             }
+        }
+    }
+
+    public void updateRotations(Player player) {
+        if (plugin.isShuttingDown() || !rotationEnabled()) {
+            return;
+        }
+        if (!player.isOnline()) {
+            stop(player);
+            return;
+        }
+        Set<String> ids = visible.get(player.getUniqueId());
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        Location playerLocation = player.getLocation();
+        for (String id : Set.copyOf(ids)) {
+            plugin.getNpcManager().get(id).ifPresent(npc -> {
+                if (!isVisible(player, npc) || isSleeping(npc)) {
+                    return;
+                }
+                updateTurnToPlayer(player, playerLocation, npc);
+            });
         }
     }
 
@@ -74,10 +133,12 @@ public final class NPCViewerManager {
         if (plugin.isShuttingDown() || !player.isOnline() || isVisible(player, npc)) {
             return;
         }
+        wakeNPC(npc);
         if (!plugin.getPacketManager().show(player, npc)) {
             return;
         }
         visible.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet()).add(npc.getId());
+        addViewer(player.getUniqueId(), npc);
         plugin.getServer().getPluginManager().callEvent(new AxoNPCShowEvent(player, npc));
     }
 
@@ -91,6 +152,7 @@ public final class NPCViewerManager {
             return;
         }
         forgetTurnToPlayer(player.getUniqueId(), npc.getId());
+        removeViewer(player.getUniqueId(), npc);
         plugin.getPacketManager().hide(player, npc);
         plugin.getServer().getPluginManager().callEvent(new AxoNPCHideEvent(player, npc));
         if (playerVisible.isEmpty()) {
@@ -106,11 +168,14 @@ public final class NPCViewerManager {
         Set<String> ids = visible.remove(player.getUniqueId());
         turningToPlayer.remove(player.getUniqueId());
         if (ids == null || ids.isEmpty()) {
+            removePlayerFromViewerCache(player.getUniqueId());
+            plugin.getPacketManager().hideAll(player);
             return;
         }
         Set<String> copy = new HashSet<>(ids);
         for (String id : copy) {
             plugin.getNpcManager().get(id).ifPresent(npc -> {
+                removeViewer(player.getUniqueId(), npc);
                 plugin.getPacketManager().hide(player, npc);
                 plugin.getServer().getPluginManager().callEvent(new AxoNPCHideEvent(player, npc));
             });
@@ -142,12 +207,14 @@ public final class NPCViewerManager {
         if (plugin.isShuttingDown()) {
             return;
         }
+        wakeNPC(npc);
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getSchedulerUtil().runEntity(player, () -> {
                 if (isVisible(player, npc)) {
                     hide(player, npc);
                 }
-                tick(player);
+                refreshVisibility(player);
+                updateRotations(player);
             });
         }
     }
@@ -156,12 +223,19 @@ public final class NPCViewerManager {
         if (plugin.isShuttingDown()) {
             return;
         }
+        sleeping.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
             plugin.getSchedulerUtil().runEntity(player, () -> {
                 hideAll(player);
-                tick(player);
+                refreshVisibility(player);
+                updateRotations(player);
             });
         }
+    }
+
+    public void wakeNPC(VirtualNPC npc) {
+        lastActiveMillis.put(npc.getId(), System.currentTimeMillis());
+        sleeping.remove(npc.getId());
     }
 
     public boolean isVisible(Player player, VirtualNPC npc) {
@@ -177,6 +251,7 @@ public final class NPCViewerManager {
         for (String id : ids) {
             Optional<VirtualNPC> npc = plugin.getNpcManager().get(id);
             if (npc.isPresent() && npc.get().getEntityId() == entityId) {
+                wakeNPC(npc.get());
                 return npc;
             }
         }
@@ -184,13 +259,18 @@ public final class NPCViewerManager {
     }
 
     public int viewerCount(VirtualNPC npc) {
-        return plugin.getPacketManager().viewerCount(npc);
+        Set<UUID> viewers = viewersByNpc.get(npc.getId());
+        return viewers == null ? 0 : viewers.size();
     }
 
     public void shutdownNow() {
         cancelAllTasks();
         hideAllImmediately();
         visible.clear();
+        viewersByNpc.clear();
+        turningToPlayer.clear();
+        sleeping.clear();
+        lastActiveMillis.clear();
     }
 
     public void hideAllImmediately() {
@@ -200,7 +280,14 @@ public final class NPCViewerManager {
     }
 
     public void hideAllImmediately(Player player) {
-        visible.remove(player.getUniqueId());
+        Set<String> ids = visible.remove(player.getUniqueId());
+        if (ids != null) {
+            for (String id : ids) {
+                plugin.getNpcManager().get(id).ifPresent(npc -> removeViewer(player.getUniqueId(), npc));
+            }
+        } else {
+            removePlayerFromViewerCache(player.getUniqueId());
+        }
         turningToPlayer.remove(player.getUniqueId());
         if (plugin.getPacketManager() != null) {
             plugin.getPacketManager().hideAll(player);
@@ -212,6 +299,7 @@ public final class NPCViewerManager {
         if (playerVisible != null) {
             playerVisible.remove(npc.getId());
             forgetTurnToPlayer(player.getUniqueId(), npc.getId());
+            removeViewer(player.getUniqueId(), npc);
             if (playerVisible.isEmpty()) {
                 visible.remove(player.getUniqueId());
             }
@@ -231,8 +319,14 @@ public final class NPCViewerManager {
         if (playerLocation.getWorld() == null || !playerLocation.getWorld().getName().equals(npc.getPosition().world())) {
             return false;
         }
-        double distanceSquared = playerLocation.distanceSquared(npc.getLocation());
-        double viewDistance = npc.getViewDistance();
+        double distanceSquared = distanceSquared(playerLocation, npc.getPosition());
+        if (isSleeping(npc) && distanceSquared > detectionDistanceSquared(npc)) {
+            return false;
+        }
+        if (isSleeping(npc)) {
+            wakeNPC(npc);
+        }
+        double viewDistance = visibilityDistance(npc);
         return distanceSquared <= viewDistance * viewDistance;
     }
 
@@ -241,19 +335,15 @@ public final class NPCViewerManager {
             resetTurnToPlayer(player, npc);
             return;
         }
-        Location npcLocation = npc.getLocation();
-        if (npcLocation.getWorld() == null) {
-            resetTurnToPlayer(player, npc);
-            return;
-        }
-        double distance = npc.getTurnToPlayerDistance();
-        if (playerLocation.distanceSquared(npcLocation) > distance * distance) {
+        double distance = rotationDistance(npc);
+        if (distance <= 0.0D || distanceSquared(playerLocation, npc.getPosition()) > distance * distance) {
             resetTurnToPlayer(player, npc);
             return;
         }
         float yaw = yawTo(player, npc);
         float pitch = pitchTo(player, npc);
         turningToPlayer.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet()).add(npc.getId());
+        wakeNPC(npc);
         plugin.getPacketManager().updateRotation(player, npc, yaw, pitch);
     }
 
@@ -274,6 +364,130 @@ public final class NPCViewerManager {
             turningToPlayer.remove(playerId);
         }
         return removed;
+    }
+
+    private void addViewer(UUID playerId, VirtualNPC npc) {
+        viewersByNpc.computeIfAbsent(npc.getId(), ignored -> ConcurrentHashMap.newKeySet()).add(playerId);
+        wakeNPC(npc);
+    }
+
+    private void removeViewer(UUID playerId, VirtualNPC npc) {
+        Set<UUID> viewers = viewersByNpc.get(npc.getId());
+        if (viewers != null) {
+            viewers.remove(playerId);
+            if (viewers.isEmpty()) {
+                viewersByNpc.remove(npc.getId());
+                lastActiveMillis.put(npc.getId(), System.currentTimeMillis());
+            }
+        }
+        updateIdleState(npc);
+    }
+
+    private void removePlayerFromViewerCache(UUID playerId) {
+        for (String npcId : Set.copyOf(viewersByNpc.keySet())) {
+            Set<UUID> viewers = viewersByNpc.get(npcId);
+            if (viewers == null) {
+                continue;
+            }
+            viewers.remove(playerId);
+            if (viewers.isEmpty()) {
+                viewersByNpc.remove(npcId);
+                lastActiveMillis.put(npcId, System.currentTimeMillis());
+            }
+        }
+    }
+
+    private void updateIdleState(VirtualNPC npc) {
+        if (!idleModeEnabled()) {
+            sleeping.remove(npc.getId());
+            return;
+        }
+        Set<UUID> viewers = viewersByNpc.get(npc.getId());
+        if (viewers != null && !viewers.isEmpty()) {
+            wakeNPC(npc);
+            return;
+        }
+        long now = System.currentTimeMillis();
+        long lastActive = lastActiveMillis.computeIfAbsent(npc.getId(), ignored -> now);
+        if (now - lastActive >= sleepAfterMillis()) {
+            sleeping.add(npc.getId());
+        }
+    }
+
+    private boolean isSleeping(VirtualNPC npc) {
+        return idleModeEnabled() && sleeping.contains(npc.getId());
+    }
+
+    private double visibilityDistance(VirtualNPC npc) {
+        double distance = Math.max(1.0D, npc.getViewDistance());
+        if (optimizationEnabled()) {
+            distance = Math.min(distance, configDouble("optimization.visibility.max-distance", distance));
+        }
+        return Math.max(1.0D, distance);
+    }
+
+    private double detectionDistanceSquared(VirtualNPC npc) {
+        double distance = Math.max(visibilityDistance(npc), configDouble("optimization.idle-mode.wake-up-range", visibilityDistance(npc)));
+        return distance * distance;
+    }
+
+    private double rotationDistance(VirtualNPC npc) {
+        double distance = Math.max(0.0D, npc.getTurnToPlayerDistance());
+        if (optimizationEnabled()) {
+            distance = Math.min(distance, configDouble("optimization.rotation.max-distance", distance));
+        }
+        return Math.max(0.0D, distance);
+    }
+
+    private long joinDelayTicks() {
+        return Math.max(0L, plugin.getConfig().getLong("rendering.join-delay-ticks", 20L));
+    }
+
+    private long visibilityIntervalTicks() {
+        long legacy = Math.max(1L, plugin.getConfig().getLong("rendering.update-interval-ticks", 10L));
+        if (!optimizationEnabled()) {
+            return legacy;
+        }
+        long visibility = Math.max(1L, plugin.getConfig().getLong("optimization.visibility.update-interval-ticks", legacy));
+        if (!plugin.getConfig().getBoolean("optimization.cache.viewers", true)) {
+            return visibility;
+        }
+        return Math.max(1L, plugin.getConfig().getLong("optimization.cache.refresh-interval-ticks", visibility));
+    }
+
+    private long rotationIntervalTicks() {
+        long legacy = Math.max(1L, plugin.getConfig().getLong("rendering.update-interval-ticks", 10L));
+        if (!optimizationEnabled()) {
+            return legacy;
+        }
+        return Math.max(1L, plugin.getConfig().getLong("optimization.rotation.update-interval-ticks", legacy));
+    }
+
+    private long sleepAfterMillis() {
+        return Math.max(0L, (long) (configDouble("optimization.idle-mode.sleep-after-seconds", 10.0D) * MILLIS_PER_SECOND));
+    }
+
+    private boolean optimizationEnabled() {
+        return plugin.getConfig().getBoolean("optimization.enabled", false);
+    }
+
+    private boolean idleModeEnabled() {
+        return optimizationEnabled() && plugin.getConfig().getBoolean("optimization.idle-mode.enabled", true);
+    }
+
+    private boolean rotationEnabled() {
+        return !optimizationEnabled() || plugin.getConfig().getBoolean("optimization.rotation.enabled", true);
+    }
+
+    private double configDouble(String path, double fallback) {
+        return plugin.getConfig().contains(path) ? plugin.getConfig().getDouble(path) : fallback;
+    }
+
+    private double distanceSquared(Location playerLocation, NPCPosition position) {
+        double dx = playerLocation.getX() - position.x();
+        double dy = playerLocation.getY() - position.y();
+        double dz = playerLocation.getZ() - position.z();
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private float yawTo(Player player, VirtualNPC npc) {

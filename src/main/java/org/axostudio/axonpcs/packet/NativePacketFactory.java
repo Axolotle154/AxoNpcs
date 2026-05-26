@@ -129,13 +129,13 @@ final class NativePacketFactory {
     private final Class<?> attackPacketClass = optionalType("net.minecraft.network.protocol.game.ServerboundAttackPacket");
     private final Class<?> interactPacketClass = type("net.minecraft.network.protocol.game.ServerboundInteractPacket");
     private final Method attackEntityId = optionalMethod(attackPacketClass, "entityId");
-    private final Field attackEntityIdField = optionalField(attackPacketClass, "entityId");
+    private final Field attackEntityIdField = firstField(attackPacketClass, int.class, "entityId", "id");
     private final Method interactEntityId = firstMethod(interactPacketClass, "entityId", "getEntityId");
-    private final Field interactEntityIdField = optionalField(interactPacketClass, "entityId");
+    private final Field interactEntityIdField = firstField(interactPacketClass, int.class, "entityId", "id");
     private final Method interactIsAttack = optionalMethod(interactPacketClass, "isAttack");
-    private final Field interactActionField = optionalField(interactPacketClass, "action");
     private final Class<?> interactActionClass = optionalType("net.minecraft.network.protocol.game.ServerboundInteractPacket$Action");
-    private final Method interactActionGetType = optionalMethod(interactActionClass, "getType");
+    private final Field interactActionField = firstField(interactPacketClass, interactActionClass, "action");
+    private final Method interactActionGetType = firstMethod(interactActionClass, "getType", "type");
 
     NativePacketFactory(AxoNPCsPlugin plugin) throws ReflectiveOperationException {
         this.plugin = plugin;
@@ -295,7 +295,7 @@ final class NativePacketFactory {
             return NPCActionTrigger.LEFT_CLICK;
         }
         if (interactPacketClass.isInstance(packet)) {
-            return interactIsAttack(packet) ? NPCActionTrigger.LEFT_CLICK : NPCActionTrigger.RIGHT_CLICK;
+            return interactTrigger(packet);
         }
         return null;
     }
@@ -313,22 +313,27 @@ final class NativePacketFactory {
         return -1;
     }
 
-    private boolean interactIsAttack(Object packet) {
+    private NPCActionTrigger interactTrigger(Object packet) {
         try {
             if (interactIsAttack != null) {
-                return Boolean.TRUE.equals(interactIsAttack.invoke(packet));
+                return Boolean.TRUE.equals(interactIsAttack.invoke(packet)) ? NPCActionTrigger.LEFT_CLICK : NPCActionTrigger.RIGHT_CLICK;
             }
-            if (interactActionField == null || interactActionGetType == null) {
-                return false;
+            if (interactActionField == null) {
+                return NPCActionTrigger.RIGHT_CLICK;
             }
             Object action = interactActionField.get(packet);
-            if (action == null || !interactActionClass.isInstance(action)) {
-                return false;
+            if (action == null) {
+                return NPCActionTrigger.RIGHT_CLICK;
             }
-            Object type = interactActionGetType.invoke(action);
-            return type instanceof Enum<?> enumValue && "ATTACK".equals(enumValue.name());
+            Object type = actionType(action);
+            String typeName = enumName(type);
+            if ("ATTACK".equals(typeName)) {
+                return NPCActionTrigger.LEFT_CLICK;
+            }
+            String actionName = action.getClass().getSimpleName().toUpperCase(Locale.ROOT);
+            return actionName.contains("ATTACK") ? NPCActionTrigger.LEFT_CLICK : NPCActionTrigger.RIGHT_CLICK;
         } catch (ReflectiveOperationException | RuntimeException exception) {
-            return false;
+            return NPCActionTrigger.RIGHT_CLICK;
         }
     }
 
@@ -341,7 +346,19 @@ final class NativePacketFactory {
         } else {
             return -1;
         }
-        return value instanceof Integer id ? id : -1;
+        return value instanceof Number number ? number.intValue() : -1;
+    }
+
+    private Object actionType(Object action) throws ReflectiveOperationException {
+        if (interactActionGetType != null) {
+            return interactActionGetType.invoke(action);
+        }
+        Field field = firstEnumField(action.getClass(), "type");
+        return field == null ? null : field.get(action);
+    }
+
+    private String enumName(Object value) {
+        return value instanceof Enum<?> enumValue ? enumValue.name() : "";
     }
 
     private Object team(NativePacketBackend.NativeNpcSession session) throws ReflectiveOperationException {
@@ -351,7 +368,7 @@ final class NativePacketFactory {
         teamSetDisplayName.invoke(team, literal(""));
         teamSetPrefix.invoke(team, literal(""));
         teamSetSuffix.invoke(team, literal(""));
-        teamSetVisibility.invoke(team, enumValue("net.minecraft.world.scores.Team$Visibility", "ALWAYS"));
+        teamSetVisibility.invoke(team, enumValue("net.minecraft.world.scores.Team$Visibility", npc.getDisplayName() == null ? "NEVER" : "ALWAYS"));
         teamSetCollision.invoke(team, enumValue("net.minecraft.world.scores.Team$CollisionRule", npc.isCollidable() ? "ALWAYS" : "NEVER"));
         teamSetColor.invoke(team, chatColor(npc.getGlowing()));
         scoreboardAddPlayerToTeam.invoke(scoreboard, session.profileName(), team);
@@ -507,6 +524,16 @@ final class NativePacketFactory {
             method.setAccessible(true);
             return method;
         } catch (NoSuchMethodException | SecurityException exception) {
+            Class<?> current = type;
+            while (current != null && current != Object.class) {
+                try {
+                    Method method = current.getDeclaredMethod(name, parameters);
+                    method.setAccessible(true);
+                    return method;
+                } catch (NoSuchMethodException | SecurityException ignored) {
+                    current = current.getSuperclass();
+                }
+            }
             return null;
         }
     }
@@ -515,13 +542,78 @@ final class NativePacketFactory {
         if (type == null) {
             return null;
         }
-        try {
-            Field field = type.getDeclaredField(name);
-            field.setAccessible(true);
-            return field;
-        } catch (NoSuchFieldException | SecurityException exception) {
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            try {
+                Field field = current.getDeclaredField(name);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException | SecurityException exception) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static Field firstField(Class<?> type, Class<?> fieldType, String... preferredNames) {
+        if (type == null) {
             return null;
         }
+        for (String name : preferredNames) {
+            Field field = optionalField(type, name);
+            if (field != null && fieldMatches(field, fieldType)) {
+                return field;
+            }
+        }
+        if (fieldType == null) {
+            return null;
+        }
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                if (!fieldMatches(field, fieldType)) {
+                    continue;
+                }
+                field.setAccessible(true);
+                return field;
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Field firstEnumField(Class<?> type, String... preferredNames) {
+        if (type == null) {
+            return null;
+        }
+        for (String name : preferredNames) {
+            Field field = optionalField(type, name);
+            if (field != null && field.getType().isEnum()) {
+                return field;
+            }
+        }
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                if (!field.getType().isEnum()) {
+                    continue;
+                }
+                field.setAccessible(true);
+                return field;
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private static boolean fieldMatches(Field field, Class<?> fieldType) {
+        if (fieldType == null) {
+            return true;
+        }
+        if (fieldType == int.class) {
+            return field.getType() == int.class || field.getType() == Integer.class;
+        }
+        return fieldType.isAssignableFrom(field.getType());
     }
 
     private static Object staticField(String className, String fieldName) throws ReflectiveOperationException {

@@ -48,6 +48,11 @@ permissions:
     default: true
   axonpcs.command.featureflags:
     default: op
+  axonpcs.command.migrate:
+    default: op
+  axonpcs.update.notify:
+    description: Receive AxoNPCs update notifications.
+    default: op
   axonpcs.command.npc.*:
     default: op
   axonpcs.command.npc.create:

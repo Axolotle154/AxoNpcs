@@ -11,6 +11,25 @@ rendering:
 interaction:
   default-cooldown-seconds: 1.5
 
+optimization:
+  enabled: true
+  idle-mode:
+    enabled: true
+    wake-up-range: 24
+    sleep-after-seconds: 10
+  rotation:
+    enabled: true
+    update-interval-ticks: 10
+    max-distance: 16
+  visibility:
+    update-interval-ticks: 20
+    max-distance: 48
+  interaction:
+    cooldown-ms: 500
+  cache:
+    viewers: true
+    refresh-interval-ticks: 20
+
 feature-flags:
   packet-npcs: true
   skins: true

@@ -1,6 +1,7 @@
 package org.axostudio.axonpcs.command;
 
 import org.axostudio.axonpcs.AxoNPCsPlugin;
+import org.axostudio.axonpcs.migration.FancyNPCMigration;
 import org.axostudio.axonpcs.util.PermissionUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -8,13 +9,14 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.ConfigurationSection;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
-    private static final List<String> SUBCOMMANDS = List.of("version", "reload", "featureflags");
+    private static final List<String> SUBCOMMANDS = List.of("version", "reload", "featureflags", "migrate");
 
     private final AxoNPCsPlugin plugin;
 
@@ -25,7 +27,7 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            plugin.getMessageManager().send(sender, "invalid-usage", Map.of("usage", "/axonpcs <version|reload|featureflags>"));
+            plugin.getMessageManager().send(sender, "invalid-usage", Map.of("usage", "/axonpcs <version|reload|featureflags|migrate>"));
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -46,9 +48,8 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.reloadConfig();
                 plugin.getMessageManager().load();
-                plugin.getViewerManager().hideAll();
                 int count = plugin.getNpcManager().reload();
-                plugin.getViewerManager().refreshAll();
+                plugin.getViewerManager().restartAll();
                 plugin.getMessageManager().send(sender, "reload", Map.of("count", String.valueOf(count)));
                 break;
             case "featureflags":
@@ -57,6 +58,13 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 plugin.getMessageManager().send(sender, "featureflags", Map.of("flags", featureFlags()));
+                break;
+            case "migrate":
+                if (!PermissionUtil.has(sender, "axonpcs.command.migrate")) {
+                    plugin.getMessageManager().send(sender, "no-permission");
+                    return true;
+                }
+                migrate(sender, label, args);
                 break;
             default:
                 plugin.getMessageManager().send(sender, "unknown-command");
@@ -69,6 +77,12 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             return filter(permittedSubcommands(sender), args[0]);
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("migrate") && PermissionUtil.has(sender, "axonpcs.command.migrate")) {
+            return filter(List.of("fancynpcs"), args[1]);
+        }
+        if (args.length >= 3 && args[0].equalsIgnoreCase("migrate") && args[1].equalsIgnoreCase("fancynpcs") && PermissionUtil.has(sender, "axonpcs.command.migrate")) {
+            return filter(List.of("--overwrite"), args[args.length - 1]);
         }
         return List.of();
     }
@@ -84,8 +98,37 @@ public final class AxoNPCsCommand implements CommandExecutor, TabCompleter {
             case "version" -> "axonpcs.command.version";
             case "reload" -> "axonpcs.command.reload";
             case "featureflags" -> "axonpcs.command.featureflags";
+            case "migrate" -> "axonpcs.command.migrate";
             default -> "axonpcs.command.*";
         };
+    }
+
+    private void migrate(CommandSender sender, String label, String[] args) {
+        if (args.length < 2 || !args[1].equalsIgnoreCase("fancynpcs")) {
+            plugin.getMessageManager().send(sender, "invalid-usage", Map.of("usage", "/" + label + " migrate fancynpcs [path] [--overwrite]"));
+            return;
+        }
+        boolean overwrite = false;
+        List<String> pathParts = new ArrayList<>();
+        for (int i = 2; i < args.length; i++) {
+            if (args[i].equalsIgnoreCase("--overwrite")) {
+                overwrite = true;
+            } else {
+                pathParts.add(args[i]);
+            }
+        }
+        File input = pathParts.isEmpty() ? null : new File(String.join(" ", pathParts));
+        try {
+            FancyNPCMigration.Result result = new FancyNPCMigration(plugin).migrate(input, overwrite);
+            plugin.getMessageManager().send(sender, "migrate-fancynpcs-success", Map.of(
+                    "imported", String.valueOf(result.imported()),
+                    "skipped", String.valueOf(result.skipped()),
+                    "failed", String.valueOf(result.failed()),
+                    "file", result.file().getAbsolutePath()
+            ));
+        } catch (RuntimeException exception) {
+            plugin.getMessageManager().send(sender, "migrate-fancynpcs-failed", Map.of("error", exception.getMessage()));
+        }
     }
 
     private String featureFlags() {

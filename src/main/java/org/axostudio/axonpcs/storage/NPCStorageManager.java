@@ -18,6 +18,8 @@ import org.bukkit.inventory.ItemStack;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -127,11 +129,15 @@ public final class NPCStorageManager {
             yaml.set("equipment." + entry.getKey().name().toLowerCase(Locale.ROOT), entry.getValue());
         }
         for (Map.Entry<NPCActionTrigger, List<NPCAction>> entry : npc.getActionsByTrigger().entrySet()) {
-            int index = 0;
+            List<Map<String, Object>> actions = new ArrayList<>();
             for (NPCAction action : entry.getValue()) {
-                String path = "actions." + entry.getKey().name() + "." + index++;
-                yaml.set(path + ".type", action.type());
-                yaml.set(path + ".value", action.value());
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("type", action.type().toLowerCase(Locale.ROOT));
+                value.put("value", action.value());
+                actions.add(value);
+            }
+            if (!actions.isEmpty()) {
+                yaml.set("actions." + entry.getKey().name().toLowerCase(Locale.ROOT), actions);
             }
         }
         try {
@@ -144,6 +150,10 @@ public final class NPCStorageManager {
     public boolean delete(String id) {
         File file = fileFor(id);
         return !file.exists() || file.delete();
+    }
+
+    public boolean exists(String id) {
+        return fileFor(id).exists();
     }
 
     public File fileFor(String id) {
@@ -212,20 +222,63 @@ public final class NPCStorageManager {
         }
         for (String triggerKey : section.getKeys(false)) {
             NPCActionTrigger trigger = NPCActionTrigger.parse(triggerKey);
-            List<NPCAction> actions = new ArrayList<>();
-            List<?> list = section.getList(triggerKey, List.of());
-            for (Object raw : list) {
-                if (raw instanceof ConfigurationSection) {
-                    ConfigurationSection actionSection = (ConfigurationSection) raw;
-                    actions.add(new NPCAction(actionSection.getString("type", "MESSAGE"), actionSection.getString("value", "")));
-                } else if (raw instanceof java.util.Map<?, ?>) {
-                    java.util.Map<?, ?> map = (java.util.Map<?, ?>) raw;
-                    Object type = map.get("type");
-                    Object value = map.get("value");
-                    actions.add(new NPCAction(String.valueOf(type == null ? "MESSAGE" : type), String.valueOf(value == null ? "" : value)));
-                }
-            }
+            List<NPCAction> actions = readActionValues(section.get(triggerKey));
             npc.setActions(trigger, actions);
+        }
+    }
+
+    private List<NPCAction> readActionValues(Object raw) {
+        List<NPCAction> actions = new ArrayList<>();
+        if (raw instanceof List<?>) {
+            for (Object entry : (List<?>) raw) {
+                readAction(entry, actions);
+            }
+            return actions;
+        }
+        if (raw instanceof ConfigurationSection) {
+            ConfigurationSection actionSection = (ConfigurationSection) raw;
+            if (actionSection.contains("type") || actionSection.contains("value")) {
+                readAction(actionSection, actions);
+                return actions;
+            }
+            actionSection.getKeys(false).stream()
+                    .sorted(Comparator.comparingInt(NPCStorageManager::actionIndex))
+                    .map(actionSection::get)
+                    .forEach(entry -> readAction(entry, actions));
+        }
+        return actions;
+    }
+
+    private void readAction(Object raw, List<NPCAction> actions) {
+        if (raw instanceof ConfigurationSection) {
+            ConfigurationSection actionSection = (ConfigurationSection) raw;
+            actions.add(new NPCAction(actionSection.getString("type", "MESSAGE"), actionSection.getString("value", "")));
+        } else if (raw instanceof Map<?, ?>) {
+            Map<?, ?> map = (Map<?, ?>) raw;
+            Object type = mapValue(map, "type");
+            Object value = mapValue(map, "value");
+            actions.add(new NPCAction(String.valueOf(type == null ? "MESSAGE" : type), String.valueOf(value == null ? "" : value)));
+        }
+    }
+
+    private static Object mapValue(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value != null) {
+            return value;
+        }
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (entry.getKey() != null && key.equalsIgnoreCase(String.valueOf(entry.getKey()))) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static int actionIndex(String key) {
+        try {
+            return Integer.parseInt(key);
+        } catch (NumberFormatException exception) {
+            return Integer.MAX_VALUE;
         }
     }
 
