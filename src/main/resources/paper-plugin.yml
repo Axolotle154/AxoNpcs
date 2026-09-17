@@ -1,0 +1,111 @@
+name: AxoNPCs
+version: ${version}
+main: org.axostudio.axonpcs.core.AxoNPCsPlugin
+api-version: '26.1.2'
+author: AxoStudio
+description: Modern Paper/Purpur/Folia client-side NPC plugin.
+folia-supported: true
+dependencies:
+  server:
+    ProtocolLib:
+      load: BEFORE
+      required: false
+      join-classpath: false
+    ProtocolSupport:
+      load: BEFORE
+      required: false
+      join-classpath: false
+    ViaVersion:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    ViaBackwards:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    ViaRewind:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    Geyser-Spigot:
+      load: BEFORE
+      required: false
+      join-classpath: false
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+permissions:
+  axonpcs.admin:
+    description: Full AxoNPCs access.
+    default: op
+  axonpcs.command.*:
+    description: Access to all AxoNPCs commands.
+    default: op
+  axonpcs.command.reload:
+    default: op
+  axonpcs.command.version:
+    default: true
+  axonpcs.command.featureflags:
+    default: op
+  axonpcs.command.migrate:
+    default: op
+  axonpcs.update.notify:
+    description: Receive AxoNPCs update notifications.
+    default: op
+  axonpcs.command.npc.*:
+    default: op
+  axonpcs.command.npc.create:
+    default: op
+  axonpcs.command.npc.copy:
+    default: op
+  axonpcs.command.npc.remove:
+    default: op
+  axonpcs.command.npc.list:
+    default: op
+  axonpcs.command.npc.info:
+    default: op
+  axonpcs.command.npc.nearby:
+    default: op
+  axonpcs.command.npc.type:
+    default: op
+  axonpcs.command.npc.displayname:
+    default: op
+  axonpcs.command.npc.skin:
+    default: op
+  axonpcs.command.npc.glowing:
+    default: op
+  axonpcs.command.npc.collidable:
+    default: op
+  axonpcs.command.npc.scale:
+    default: op
+  axonpcs.command.npc.sound:
+    default: op
+  axonpcs.command.npc.health:
+    default: op
+  axonpcs.command.npc.behavior:
+    default: op
+  axonpcs.command.npc.animation:
+    default: op
+  axonpcs.command.npc.appearance:
+    default: op
+  axonpcs.command.npc.viewdistance:
+    default: op
+  axonpcs.command.npc.turn_to_player:
+    default: op
+  axonpcs.command.npc.turn_to_player_distance:
+    default: op
+  axonpcs.command.npc.move:
+    default: op
+  axonpcs.command.npc.teleport:
+    default: op
+  axonpcs.command.npc.action:
+    default: op
+  axonpcs.command.npc.interactioncooldown:
+    default: op
+  axonpcs.command.npc.rotate:
+    default: op
+  axonpcs.command.npc.group:
+    default: op
+  axonpcs.command.npc.equip:
+    default: op
